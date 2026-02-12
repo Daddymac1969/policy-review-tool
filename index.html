@@ -446,7 +446,8 @@ ${fileText.substring(0, 80000)}`;
     doc.text('Overall Score:', margin, y);
     doc.setFont('helvetica', 'normal');
     const score = results?.overallScore || 0;
-    doc.setTextColor(score >= 80 ? 5, 150, 105 : score >= 60 ? 217, 119, 6 : 220, 38, 38);
+    const scoreColor = score >= 80 ? [5, 150, 105] : score >= 60 ? [217, 119, 6] : [220, 38, 38];
+    doc.setTextColor(...scoreColor);
     doc.text(`${score}%`, margin + 45, y);
     doc.setTextColor(0, 0, 0);
 
@@ -475,7 +476,8 @@ ${fileText.substring(0, 80000)}`;
         y = margin;
       }
       doc.setFontSize(10);
-      doc.setTextColor(check.pass ? 5, 150, 105 : 220, 38, 38);
+      const checkColor = check.pass ? [5, 150, 105] : [220, 38, 38];
+      doc.setTextColor(...checkColor);
       doc.text(check.pass ? '✓' : '✗', margin, y);
       doc.setTextColor(0, 0, 0);
       doc.setFont('helvetica', 'normal');
