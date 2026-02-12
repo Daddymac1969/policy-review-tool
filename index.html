@@ -256,7 +256,8 @@ function PolicyReviewTool() {
   const [customRequirements, setCustomRequirements] = useState('');
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState(null);
-  const [correctedContent, setCorrectedContent] = useState(null);
+  const [restructured, setRestructured] = useState(null);
+  const [restructuring, setRestructuring] = useState(false);
   const fileInputRef = useRef(null);
 
   // Save API key
@@ -269,7 +270,7 @@ function PolicyReviewTool() {
   const handleFile = async (f) => {
     setFile(f);
     setResults(null);
-    setCorrectedContent(null);
+    setRestructured(null);
     
     try {
       let text = '';
@@ -400,7 +401,432 @@ ${fileText.substring(0, 80000)}`;
     }
   };
 
-  // Generate PDF
+  // Restructure policy into TASIS template
+  const restructurePolicy = async () => {
+    if (!fileText || !apiKey) return;
+    
+    setRestructuring(true);
+    
+    const preset = POLICY_PRESETS[policyType];
+    
+    const systemPrompt = `You are a UK school policy document formatter for TASIS The American School in England.
+
+Your task is to restructure the provided policy document into the official TASIS template format.
+
+OUTPUT FORMAT - Return valid JSON:
+{
+  "policyTitle": "Full Policy Title",
+  "shortCode": "ABC",
+  "version": "1.0",
+  "datePublished": "September 2025",
+  "dateRatified": "September 2025", 
+  "reviewDate": "September 2026",
+  "responsibleArea": "Person or Department",
+  "infoSharingCategory": "PUBLIC or INTERNAL",
+  "scope": "Boarding and the Early Years",
+  "legislationReferenced": ["KCSIE 2025", "Working Together 2023"],
+  "sections": [
+    {
+      "number": "1",
+      "title": "Introduction",
+      "content": "Full text content for this section..."
+    },
+    {
+      "number": "2", 
+      "title": "Purpose",
+      "content": "Full text content..."
+    }
+  ],
+  "signatories": [
+    {"role": "Head of School", "name": "Bryan Nixon", "date": "September 2025"},
+    {"role": "Chair of Board", "name": "David King", "date": "September 2025"}
+  ],
+  "crossReferences": ["Safeguarding Policy", "Behaviour Policy"],
+  "respondReference": true
+}
+
+RULES:
+1. Preserve ALL original content - do not summarize or omit anything
+2. Organize into logical numbered sections
+3. Extract/infer metadata where possible
+4. Keep section content complete and detailed
+5. Include RESPOND framework reference if safeguarding-related
+6. Add appropriate legislation references for the policy type
+7. Use formal, professional language throughout`;
+
+    const userPrompt = `POLICY TYPE: ${preset.name}
+
+Restructure this policy into the TASIS template format. Preserve all content but organize it properly.
+
+ORIGINAL DOCUMENT:
+${fileText.substring(0, 80000)}`;
+
+    try {
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true'
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 8000,
+          messages: [{ role: 'user', content: userPrompt }],
+          system: systemPrompt
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const text = data.content[0].text;
+      
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        setRestructured(JSON.parse(jsonMatch[0]));
+      } else {
+        throw new Error('Could not parse restructured content');
+      }
+    } catch (e) {
+      alert('Error restructuring policy: ' + e.message);
+    } finally {
+      setRestructuring(false);
+    }
+  };
+
+  // TASIS Brand Colors
+  const TASIS_NAVY = [30, 58, 95];      // #1E3A5F
+  const TASIS_RED = [200, 16, 46];      // #C8102E
+  const TASIS_GREY = [100, 116, 139];
+  const TASIS_LIGHT = [248, 250, 252];
+  const WHITE = [255, 255, 255];
+  const BLACK = [0, 0, 0];
+
+  // Load logo for PDF
+  const loadLogoForPDF = () => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = 'Anonymous';
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        resolve(canvas.toDataURL('image/png'));
+      };
+      img.onerror = () => resolve(null);
+      img.src = 'https://raw.githubusercontent.com/Daddymac1969/Orah-passes/main/New%20TE%20Logo.png';
+    });
+  };
+
+  // Generate restructured policy PDF
+  const generateRestructuredPDF = async () => {
+    if (!restructured) return;
+    
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    
+    const pageWidth = 210;
+    const pageHeight = 297;
+    const margin = 20;
+    const contentWidth = pageWidth - (margin * 2);
+    let y = margin;
+    
+    // Load logo
+    const logoData = await loadLogoForPDF();
+    
+    const addPage = () => {
+      doc.addPage();
+      y = margin;
+    };
+    
+    const checkPageBreak = (needed) => {
+      if (y + needed > pageHeight - 25) addPage();
+    };
+
+    // ═══ COVER PAGE ═══
+    
+    // Navy header bar
+    doc.setFillColor(...TASIS_NAVY);
+    doc.rect(0, 0, pageWidth, 55, 'F');
+    
+    // Red accent line
+    doc.setFillColor(...TASIS_RED);
+    doc.rect(0, 55, pageWidth, 2, 'F');
+    
+    // Logo
+    if (logoData) {
+      doc.addImage(logoData, 'PNG', pageWidth/2 - 15, 8, 30, 30);
+    }
+    
+    // TASIS text header
+    doc.setTextColor(...WHITE);
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text('TASIS The American School in England', pageWidth / 2, 42, { align: 'center' });
+    
+    // Policy title
+    doc.setFontSize(20);
+    doc.setFont('helvetica', 'bold');
+    const titleLines = doc.splitTextToSize(restructured.policyTitle || 'Policy Document', contentWidth - 20);
+    doc.text(titleLines, pageWidth / 2, 50, { align: 'center' });
+    
+    y = 70;
+    
+    // Safeguarding commitment statement
+    doc.setFillColor(...TASIS_LIGHT);
+    doc.roundedRect(margin, y, contentWidth, 22, 2, 2, 'F');
+    doc.setDrawColor(...TASIS_NAVY);
+    doc.setLineWidth(0.5);
+    doc.roundedRect(margin, y, contentWidth, 22, 2, 2, 'S');
+    doc.setTextColor(...TASIS_NAVY);
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'italic');
+    const safeguardingStmt = 'TASIS England is committed to safeguarding and promoting the welfare of students and expects all faculty, staff and volunteers to share this commitment. It is our aim that all students fulfil their potential.';
+    const stmtLines = doc.splitTextToSize(safeguardingStmt, contentWidth - 10);
+    doc.text(stmtLines, pageWidth / 2, y + 8, { align: 'center' });
+    
+    y += 30;
+    
+    // Scope statement
+    doc.setTextColor(...TASIS_GREY);
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    const scopeText = `This policy applies to the whole school including ${restructured.scope || 'Boarding and the Early Years'}.`;
+    doc.text(scopeText, pageWidth / 2, y, { align: 'center' });
+    y += 5;
+    const versionStmt = 'The current version of any policy is the version held on the TASIS England website.';
+    doc.text(versionStmt, pageWidth / 2, y, { align: 'center' });
+    
+    y += 15;
+    
+    // Metadata table
+    const metaData = [
+      ['Information Sharing Category', restructured.infoSharingCategory || 'PUBLIC'],
+      ['TASIS England Document Reference', `TASIS_${restructured.shortCode || 'POL'}_v${restructured.version || '1.0'}`],
+      ['Version', `v${restructured.version || '1.0'}`],
+      ['Date Published', restructured.datePublished || ''],
+      ['Date Ratified by Head of School', restructured.dateRatified || ''],
+      ['Review/Update Date', restructured.reviewDate || ''],
+      ['Responsible Area', restructured.responsibleArea || '']
+    ];
+    
+    const colW1 = 65;
+    const colW2 = contentWidth - colW1;
+    const rowH = 7;
+    
+    metaData.forEach((row, i) => {
+      // Label cell
+      doc.setFillColor(...TASIS_LIGHT);
+      doc.rect(margin, y, colW1, rowH, 'F');
+      doc.setDrawColor(200, 200, 200);
+      doc.rect(margin, y, colW1, rowH, 'S');
+      doc.setTextColor(...TASIS_NAVY);
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'bold');
+      doc.text(row[0], margin + 2, y + 5);
+      
+      // Value cell
+      doc.setFillColor(...WHITE);
+      doc.rect(margin + colW1, y, colW2, rowH, 'S');
+      doc.setTextColor(...BLACK);
+      doc.setFont('helvetica', 'normal');
+      doc.text(row[1] || '', margin + colW1 + 2, y + 5);
+      
+      y += rowH;
+    });
+    
+    y += 10;
+    
+    // Signatories
+    doc.setTextColor(...TASIS_NAVY);
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Agreed by:', margin, y);
+    y += 6;
+    
+    const sigs = restructured.signatories || [
+      { role: 'Head of School', name: 'Bryan Nixon', date: '' },
+      { role: 'Chair of Board', name: 'David King', date: '' }
+    ];
+    
+    const sigW = contentWidth / sigs.length;
+    
+    // Header row
+    sigs.forEach((sig, i) => {
+      doc.setFillColor(...TASIS_NAVY);
+      doc.rect(margin + (i * sigW), y, sigW, 8, 'F');
+      doc.setTextColor(...WHITE);
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'bold');
+      doc.text(sig.role, margin + (i * sigW) + sigW/2, y + 5.5, { align: 'center' });
+    });
+    y += 8;
+    
+    // Name row
+    sigs.forEach((sig, i) => {
+      doc.setDrawColor(200, 200, 200);
+      doc.rect(margin + (i * sigW), y, sigW, 7, 'S');
+      doc.setTextColor(...BLACK);
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      doc.text(sig.name || '', margin + (i * sigW) + sigW/2, y + 5, { align: 'center' });
+    });
+    y += 7;
+    
+    // Date row
+    sigs.forEach((sig, i) => {
+      doc.rect(margin + (i * sigW), y, sigW, 7, 'S');
+      doc.text(sig.date || '', margin + (i * sigW) + sigW/2, y + 5, { align: 'center' });
+    });
+    
+    y += 15;
+    
+    // Legislation references
+    if (restructured.legislationReferenced?.length > 0) {
+      doc.setDrawColor(...TASIS_RED);
+      doc.setLineWidth(0.8);
+      doc.line(margin, y, margin, y + 10);
+      doc.setTextColor(...TASIS_GREY);
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'italic');
+      doc.text('Statutory compliance: ' + restructured.legislationReferenced.join('; '), margin + 4, y + 4);
+      y += 12;
+    }
+    
+    // ═══ CONTENTS PAGE ═══
+    addPage();
+    
+    doc.setTextColor(...TASIS_NAVY);
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Contents', margin, y);
+    doc.setDrawColor(...TASIS_RED);
+    doc.setLineWidth(0.8);
+    doc.line(margin, y + 2, margin + 25, y + 2);
+    y += 12;
+    
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...BLACK);
+    
+    (restructured.sections || []).forEach(section => {
+      doc.text(`${section.number}. ${section.title}`, margin + 5, y);
+      y += 6;
+    });
+    
+    // ═══ CONTENT PAGES ═══
+    addPage();
+    
+    (restructured.sections || []).forEach((section, idx) => {
+      checkPageBreak(20);
+      
+      // Section header
+      doc.setFillColor(...TASIS_LIGHT);
+      doc.rect(margin, y - 4, contentWidth, 10, 'F');
+      doc.setDrawColor(...TASIS_NAVY);
+      doc.setLineWidth(0.5);
+      doc.line(margin, y + 6, margin + contentWidth, y + 6);
+      
+      // Red accent on section header
+      doc.setDrawColor(...TASIS_RED);
+      doc.setLineWidth(1);
+      doc.line(margin, y - 4, margin, y + 6);
+      
+      doc.setTextColor(...TASIS_NAVY);
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`${section.number}. ${section.title}`, margin + 4, y + 3);
+      y += 14;
+      
+      // Section content
+      doc.setTextColor(...BLACK);
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      
+      const contentLines = doc.splitTextToSize(section.content || '', contentWidth);
+      
+      contentLines.forEach(line => {
+        checkPageBreak(6);
+        doc.text(line, margin, y);
+        y += 5;
+      });
+      
+      y += 8;
+    });
+    
+    // Cross-references
+    if (restructured.crossReferences?.length > 0) {
+      checkPageBreak(20);
+      doc.setDrawColor(...TASIS_NAVY);
+      doc.setLineWidth(0.8);
+      doc.line(margin, y, margin, y + 8);
+      doc.setTextColor(...TASIS_GREY);
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'italic');
+      doc.text('Related TASIS policies: ' + restructured.crossReferences.join('; '), margin + 4, y + 4);
+      y += 15;
+    }
+    
+    // RESPOND framework box
+    if (restructured.respondReference) {
+      checkPageBreak(25);
+      doc.setFillColor(209, 250, 229);
+      doc.roundedRect(margin, y, contentWidth, 20, 2, 2, 'F');
+      doc.setDrawColor(5, 150, 105);
+      doc.setLineWidth(0.5);
+      doc.roundedRect(margin, y, contentWidth, 20, 2, 2, 'S');
+      doc.setTextColor(6, 95, 70);
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.text('RESPOND Framework', margin + 4, y + 6);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      const respondText = 'This policy aligns with the RESPOND safeguarding workflow: Recognise → Engage → Support → Pause → Offer → Notify → Document, underpinned by ACT (Active Intervention, Contextual Safeguarding, Trauma-Informed Practice).';
+      const respondLines = doc.splitTextToSize(respondText, contentWidth - 8);
+      doc.text(respondLines, margin + 4, y + 12);
+    }
+    
+    // ═══ FOOTERS ═══
+    const pageCount = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      
+      // Footer line
+      doc.setDrawColor(...TASIS_NAVY);
+      doc.setLineWidth(0.3);
+      doc.line(margin, pageHeight - 15, pageWidth - margin, pageHeight - 15);
+      
+      // Red accent
+      doc.setDrawColor(...TASIS_RED);
+      doc.setLineWidth(0.8);
+      doc.line(margin, pageHeight - 14.5, margin + 25, pageHeight - 14.5);
+      
+      // Footer text
+      doc.setFontSize(7);
+      doc.setTextColor(...TASIS_GREY);
+      doc.setFont('helvetica', 'italic');
+      doc.text(safeguardingStmt.substring(0, 90) + '...', margin, pageHeight - 10);
+      
+      // Page number
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Page ${i} of ${pageCount}`, pageWidth - margin, pageHeight - 10, { align: 'right' });
+      
+      // Doc reference
+      doc.text(`TASIS_${restructured.shortCode || 'POL'}_v${restructured.version || '1.0'}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
+    }
+    
+    // Save
+    const filename = `${(restructured.policyTitle || 'Policy').replace(/[^a-zA-Z0-9 ]/g, '').replace(/\s+/g, '_')}_TASIS_v${restructured.version || '1.0'}.pdf`;
+    doc.save(filename);
+  };
+
+  // Generate review report PDF
   const generatePDF = async () => {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF({
@@ -409,65 +835,90 @@ ${fileText.substring(0, 80000)}`;
       format: 'a4'
     });
 
-    const NAVY = '#1B3A5C';
     const pageWidth = 210;
     const pageHeight = 297;
     const margin = 20;
     const contentWidth = pageWidth - (margin * 2);
     let y = margin;
 
+    // Load logo
+    const logoData = await loadLogoForPDF();
+
     // Header
-    doc.setFillColor(27, 58, 92);
-    doc.rect(0, 0, pageWidth, 30, 'F');
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(16);
+    doc.setFillColor(...TASIS_NAVY);
+    doc.rect(0, 0, pageWidth, 32, 'F');
+    
+    // Red accent line
+    doc.setFillColor(...TASIS_RED);
+    doc.rect(0, 32, pageWidth, 2, 'F');
+    
+    // Logo in header
+    if (logoData) {
+      doc.addImage(logoData, 'PNG', margin, 6, 20, 20);
+    }
+    
+    // Header text
+    doc.setTextColor(...WHITE);
+    doc.setFontSize(18);
     doc.setFont('helvetica', 'bold');
-    doc.text('TASIS Policy Review Report', margin, 18);
+    doc.text('Policy Review Report', logoData ? margin + 25 : margin, 16);
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
-    doc.text(new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }), pageWidth - margin, 18, { align: 'right' });
+    doc.text('TASIS The American School in England', logoData ? margin + 25 : margin, 23);
+    doc.setFontSize(9);
+    doc.text(new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }), pageWidth - margin, 20, { align: 'right' });
 
-    y = 45;
+    y = 48;
 
     // Policy info
-    doc.setTextColor(27, 58, 92);
-    doc.setFontSize(12);
+    doc.setTextColor(...TASIS_NAVY);
+    doc.setFontSize(11);
     doc.setFont('helvetica', 'bold');
-    doc.text('Document Reviewed:', margin, y);
+    doc.text('Document:', margin, y);
     doc.setFont('helvetica', 'normal');
-    doc.text(file?.name || 'Unknown', margin + 45, y);
+    doc.setTextColor(...BLACK);
+    doc.text(file?.name || 'Unknown', margin + 30, y);
     y += 7;
+    doc.setTextColor(...TASIS_NAVY);
     doc.setFont('helvetica', 'bold');
     doc.text('Policy Type:', margin, y);
     doc.setFont('helvetica', 'normal');
-    doc.text(POLICY_PRESETS[policyType]?.name || policyType, margin + 45, y);
+    doc.setTextColor(...BLACK);
+    doc.text(POLICY_PRESETS[policyType]?.name || policyType, margin + 30, y);
     y += 7;
+    doc.setTextColor(...TASIS_NAVY);
     doc.setFont('helvetica', 'bold');
-    doc.text('Overall Score:', margin, y);
+    doc.text('Score:', margin, y);
     doc.setFont('helvetica', 'normal');
     const score = results?.overallScore || 0;
-    const scoreColor = score >= 80 ? [5, 150, 105] : score >= 60 ? [217, 119, 6] : [220, 38, 38];
+    const scoreColor = score >= 80 ? [5, 150, 105] : score >= 60 ? [217, 119, 6] : [...TASIS_RED];
     doc.setTextColor(...scoreColor);
-    doc.text(`${score}%`, margin + 45, y);
-    doc.setTextColor(0, 0, 0);
+    doc.text(`${score}%`, margin + 30, y);
+    doc.setTextColor(...BLACK);
 
-    y += 15;
+    y += 12;
 
     // Summary
-    doc.setFillColor(241, 245, 249);
-    doc.roundedRect(margin, y, contentWidth, 25, 3, 3, 'F');
+    doc.setFillColor(...TASIS_LIGHT);
+    doc.roundedRect(margin, y, contentWidth, 25, 2, 2, 'F');
+    doc.setDrawColor(...TASIS_NAVY);
+    doc.setLineWidth(0.3);
+    doc.roundedRect(margin, y, contentWidth, 25, 2, 2, 'S');
     doc.setFontSize(10);
-    doc.setTextColor(71, 85, 105);
+    doc.setTextColor(...TASIS_GREY);
     const summaryLines = doc.splitTextToSize(results?.summary || 'No summary available', contentWidth - 10);
     doc.text(summaryLines, margin + 5, y + 8);
     y += 30;
 
     // Template Checks
-    doc.setTextColor(27, 58, 92);
+    doc.setTextColor(...TASIS_NAVY);
     doc.setFontSize(12);
     doc.setFont('helvetica', 'bold');
     doc.text('Template Compliance', margin, y);
-    y += 8;
+    doc.setDrawColor(...TASIS_RED);
+    doc.setLineWidth(0.8);
+    doc.line(margin, y + 2, margin + 45, y + 2);
+    y += 10;
 
     const templateChecks = results?.templateChecks || [];
     templateChecks.forEach(check => {
@@ -476,15 +927,15 @@ ${fileText.substring(0, 80000)}`;
         y = margin;
       }
       doc.setFontSize(10);
-      const checkColor = check.pass ? [5, 150, 105] : [220, 38, 38];
+      const checkColor = check.pass ? [5, 150, 105] : [...TASIS_RED];
       doc.setTextColor(...checkColor);
       doc.text(check.pass ? '✓' : '✗', margin, y);
-      doc.setTextColor(0, 0, 0);
+      doc.setTextColor(...BLACK);
       doc.setFont('helvetica', 'normal');
       const label = TASIS_TEMPLATE_CHECKS.find(t => t.id === check.id)?.label || check.id;
       doc.text(label, margin + 8, y);
       if (check.note) {
-        doc.setTextColor(100, 116, 139);
+        doc.setTextColor(...TASIS_GREY);
         doc.setFontSize(9);
         doc.text(`(${check.note})`, margin + 8, y + 4);
         y += 4;
@@ -500,21 +951,24 @@ ${fileText.substring(0, 80000)}`;
         doc.addPage();
         y = margin;
       }
-      doc.setTextColor(27, 58, 92);
+      doc.setTextColor(...TASIS_NAVY);
       doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
       doc.text('Issues Found', margin, y);
-      y += 8;
+      doc.setDrawColor(...TASIS_RED);
+      doc.setLineWidth(0.8);
+      doc.line(margin, y + 2, margin + 30, y + 2);
+      y += 10;
 
       results.contentIssues.forEach(issue => {
         if (y > pageHeight - 30) {
           doc.addPage();
           y = margin;
         }
-        const color = issue.type === 'error' ? [220, 38, 38] : issue.type === 'warning' ? [217, 119, 6] : [37, 99, 235];
+        const color = issue.type === 'error' ? [...TASIS_RED] : issue.type === 'warning' ? [217, 119, 6] : [...TASIS_NAVY];
         doc.setFillColor(...color);
         doc.circle(margin + 2, y - 1, 1.5, 'F');
-        doc.setTextColor(0, 0, 0);
+        doc.setTextColor(...BLACK);
         doc.setFontSize(10);
         doc.setFont('helvetica', 'bold');
         const issueLines = doc.splitTextToSize(issue.issue, contentWidth - 10);
@@ -522,7 +976,7 @@ ${fileText.substring(0, 80000)}`;
         y += issueLines.length * 4 + 2;
         if (issue.suggestion) {
           doc.setFont('helvetica', 'italic');
-          doc.setTextColor(100, 116, 139);
+          doc.setTextColor(...TASIS_GREY);
           doc.setFontSize(9);
           const suggestionLines = doc.splitTextToSize('→ ' + issue.suggestion, contentWidth - 12);
           doc.text(suggestionLines, margin + 10, y);
@@ -540,23 +994,26 @@ ${fileText.substring(0, 80000)}`;
         doc.addPage();
         y = margin;
       }
-      doc.setTextColor(27, 58, 92);
+      doc.setTextColor(...TASIS_NAVY);
       doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
       doc.text('Priority Actions', margin, y);
-      y += 8;
+      doc.setDrawColor(...TASIS_RED);
+      doc.setLineWidth(0.8);
+      doc.line(margin, y + 2, margin + 38, y + 2);
+      y += 10;
 
       results.priorityActions.forEach((action, i) => {
         if (y > pageHeight - 20) {
           doc.addPage();
           y = margin;
         }
-        doc.setFillColor(27, 58, 92);
+        doc.setFillColor(...TASIS_NAVY);
         doc.circle(margin + 2, y - 1, 3, 'F');
-        doc.setTextColor(255, 255, 255);
+        doc.setTextColor(...WHITE);
         doc.setFontSize(8);
         doc.text(String(i + 1), margin + 0.8, y + 0.5);
-        doc.setTextColor(0, 0, 0);
+        doc.setTextColor(...BLACK);
         doc.setFontSize(10);
         doc.setFont('helvetica', 'normal');
         const actionLines = doc.splitTextToSize(action, contentWidth - 12);
@@ -569,8 +1026,19 @@ ${fileText.substring(0, 80000)}`;
     const pageCount = doc.internal.getNumberOfPages();
     for (let i = 1; i <= pageCount; i++) {
       doc.setPage(i);
+      
+      // Footer line
+      doc.setDrawColor(...TASIS_NAVY);
+      doc.setLineWidth(0.3);
+      doc.line(margin, pageHeight - 15, pageWidth - margin, pageHeight - 15);
+      
+      // Red accent
+      doc.setDrawColor(...TASIS_RED);
+      doc.setLineWidth(0.8);
+      doc.line(margin, pageHeight - 14.5, margin + 25, pageHeight - 14.5);
+      
       doc.setFontSize(8);
-      doc.setTextColor(150, 150, 150);
+      doc.setTextColor(...TASIS_GREY);
       doc.text('TASIS England Policy Review Tool', margin, pageHeight - 10);
       doc.text(`Page ${i} of ${pageCount}`, pageWidth - margin, pageHeight - 10, { align: 'right' });
     }
@@ -754,7 +1222,78 @@ ${fileText.substring(0, 80000)}`;
 
         // Export buttons
         React.createElement('div', { className: 'btn-group', style: { marginTop: '20px' } },
-          React.createElement('button', { className: 'btn btn-success', onClick: generatePDF }, '📄 Download Review Report (PDF)')
+          React.createElement('button', { className: 'btn btn-outline', onClick: generatePDF }, '📋 Download Review Report'),
+          React.createElement('button', { 
+            className: 'btn btn-primary', 
+            onClick: restructurePolicy,
+            disabled: restructuring
+          }, restructuring ? '⏳ Restructuring...' : '🔄 Restructure into TASIS Template')
+        )
+      ),
+
+      // Restructuring in progress
+      restructuring && React.createElement('div', { className: 'section' },
+        React.createElement('div', { className: 'loading' },
+          React.createElement('div', { className: 'spinner' }),
+          'Restructuring policy into TASIS template format...'
+        )
+      ),
+
+      // Restructured output
+      restructured && React.createElement('div', { className: 'section' },
+        React.createElement('div', { className: 'section-title' }, React.createElement('span', null, '📄'), 'Restructured Policy'),
+        
+        // Preview
+        React.createElement('div', { style: { background: '#F8FAFC', borderRadius: '8px', padding: '16px', marginBottom: '16px' } },
+          React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' } },
+            React.createElement('div', null,
+              React.createElement('h3', { style: { margin: 0, fontSize: '16px', color: '#1B3A5C' } }, restructured.policyTitle),
+              React.createElement('p', { style: { margin: '4px 0 0', fontSize: '12px', color: '#64748B' } }, 
+                `Version ${restructured.version || '1.0'} • ${restructured.responsibleArea || 'Not specified'} • Review: ${restructured.reviewDate || 'Not set'}`
+              )
+            ),
+            React.createElement('span', { style: { 
+              background: '#D1FAE5', color: '#065F46', padding: '4px 10px', borderRadius: '4px', fontSize: '11px', fontWeight: 600 
+            }}, '✓ TASIS Template')
+          ),
+          
+          // Metadata preview
+          React.createElement('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', marginBottom: '12px' } },
+            React.createElement('div', { style: { background: '#FFF', padding: '8px', borderRadius: '4px', fontSize: '11px' } },
+              React.createElement('div', { style: { color: '#94A3B8', marginBottom: '2px' } }, 'Document Ref'),
+              React.createElement('div', { style: { fontWeight: 600 } }, `TASIS_${restructured.shortCode || 'POL'}_v${restructured.version || '1.0'}`)
+            ),
+            React.createElement('div', { style: { background: '#FFF', padding: '8px', borderRadius: '4px', fontSize: '11px' } },
+              React.createElement('div', { style: { color: '#94A3B8', marginBottom: '2px' } }, 'Sections'),
+              React.createElement('div', { style: { fontWeight: 600 } }, restructured.sections?.length || 0)
+            ),
+            React.createElement('div', { style: { background: '#FFF', padding: '8px', borderRadius: '4px', fontSize: '11px' } },
+              React.createElement('div', { style: { color: '#94A3B8', marginBottom: '2px' } }, 'Legislation Refs'),
+              React.createElement('div', { style: { fontWeight: 600 } }, restructured.legislationReferenced?.length || 0)
+            )
+          ),
+          
+          // Sections list
+          React.createElement('div', { style: { fontSize: '12px' } },
+            React.createElement('div', { style: { fontWeight: 600, color: '#475569', marginBottom: '6px' } }, 'Contents:'),
+            React.createElement('ol', { style: { margin: 0, paddingLeft: '20px', color: '#64748B' } },
+              (restructured.sections || []).slice(0, 8).map((s, i) => 
+                React.createElement('li', { key: i, style: { marginBottom: '2px' } }, s.title)
+              ),
+              (restructured.sections || []).length > 8 && React.createElement('li', { style: { fontStyle: 'italic' } }, `...and ${restructured.sections.length - 8} more sections`)
+            )
+          )
+        ),
+        
+        // Download button
+        React.createElement('div', { className: 'btn-group' },
+          React.createElement('button', { className: 'btn btn-success', onClick: generateRestructuredPDF }, 
+            '📥 Download Restructured Policy (PDF)'
+          )
+        ),
+        
+        React.createElement('p', { style: { fontSize: '11px', color: '#94A3B8', marginTop: '12px' } },
+          'The PDF includes: cover page, metadata table, signatory block, numbered sections, legislation references, and RESPOND framework box (if applicable).'
         )
       )
     ),
