@@ -413,7 +413,17 @@ ${fileText.substring(0, 80000)}`;
 
 Your task is to restructure the provided policy document into the official TASIS template format.
 
-OUTPUT FORMAT - Return valid JSON:
+CRITICAL JSON FORMATTING RULES:
+- Return ONLY valid JSON - no markdown, no code blocks, no explanatory text
+- All strings must have special characters properly escaped:
+  - Newlines as \\n
+  - Quotes as \\"
+  - Backslashes as \\\\
+  - Tabs as \\t
+- Keep section content as single-line strings (use \\n for line breaks)
+- Do not include actual line breaks inside JSON string values
+
+OUTPUT FORMAT:
 {
   "policyTitle": "Full Policy Title",
   "shortCode": "ABC",
@@ -422,19 +432,19 @@ OUTPUT FORMAT - Return valid JSON:
   "dateRatified": "September 2025", 
   "reviewDate": "September 2026",
   "responsibleArea": "Person or Department",
-  "infoSharingCategory": "PUBLIC or INTERNAL",
+  "infoSharingCategory": "PUBLIC",
   "scope": "Boarding and the Early Years",
   "legislationReferenced": ["KCSIE 2025", "Working Together 2023"],
   "sections": [
     {
       "number": "1",
       "title": "Introduction",
-      "content": "Full text content for this section..."
+      "content": "Full text content for this section with line breaks as \\n characters..."
     },
     {
       "number": "2", 
       "title": "Purpose",
-      "content": "Full text content..."
+      "content": "More content here..."
     }
   ],
   "signatories": [
@@ -445,14 +455,15 @@ OUTPUT FORMAT - Return valid JSON:
   "respondReference": true
 }
 
-RULES:
+CONTENT RULES:
 1. Preserve ALL original content - do not summarize or omit anything
 2. Organize into logical numbered sections
 3. Extract/infer metadata where possible
 4. Keep section content complete and detailed
 5. Include RESPOND framework reference if safeguarding-related
 6. Add appropriate legislation references for the policy type
-7. Use formal, professional language throughout`;
+7. Use formal, professional language throughout
+8. Escape ALL special characters in strings - this is critical for valid JSON`;
 
     const userPrompt = `POLICY TYPE: ${preset.name}
 
@@ -472,7 +483,7 @@ ${fileText.substring(0, 80000)}`;
         },
         body: JSON.stringify({
           model: 'claude-sonnet-4-20250514',
-          max_tokens: 8000,
+          max_tokens: 16000,
           messages: [{ role: 'user', content: userPrompt }],
           system: systemPrompt
         })
@@ -485,11 +496,72 @@ ${fileText.substring(0, 80000)}`;
       const data = await response.json();
       const text = data.content[0].text;
       
+      // Extract JSON from response
       const jsonMatch = text.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
-        setRestructured(JSON.parse(jsonMatch[0]));
+        let jsonStr = jsonMatch[0];
+        
+        // Clean JSON - fix common LLM output issues
+        const cleanJSON = (str) => {
+          // Replace literal newlines inside strings with \n escape
+          // This regex finds string values and escapes newlines within them
+          let inString = false;
+          let escaped = false;
+          let result = '';
+          
+          for (let i = 0; i < str.length; i++) {
+            const char = str[i];
+            
+            if (escaped) {
+              result += char;
+              escaped = false;
+              continue;
+            }
+            
+            if (char === '\\') {
+              escaped = true;
+              result += char;
+              continue;
+            }
+            
+            if (char === '"') {
+              inString = !inString;
+              result += char;
+              continue;
+            }
+            
+            if (inString) {
+              // Replace problematic characters inside strings
+              if (char === '\n') {
+                result += '\\n';
+              } else if (char === '\r') {
+                result += '\\r';
+              } else if (char === '\t') {
+                result += '\\t';
+              } else if (char.charCodeAt(0) < 32) {
+                // Skip other control characters
+                result += ' ';
+              } else {
+                result += char;
+              }
+            } else {
+              result += char;
+            }
+          }
+          return result;
+        };
+        
+        jsonStr = cleanJSON(jsonStr);
+        
+        try {
+          setRestructured(JSON.parse(jsonStr));
+        } catch (parseError) {
+          console.error('JSON parse error:', parseError.message);
+          console.error('Raw JSON (first 500 chars):', jsonStr.substring(0, 500));
+          throw new Error('Could not parse AI response. Please try again or use a shorter document.');
+        }
       } else {
-        throw new Error('Could not parse restructured content');
+        throw new Error('Could not find JSON in AI response');
       }
     } catch (e) {
       alert('Error restructuring policy: ' + e.message);
