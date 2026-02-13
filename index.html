@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TASIS Policy Review Tool</title>
+  <title>TASIS Policy Tools</title>
   <link rel="icon" type="image/png" href="https://raw.githubusercontent.com/Daddymac1969/Orah-passes/main/New%20TE%20Logo.png">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
@@ -14,94 +14,121 @@
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #F1F5F9; min-height: 100vh; }
-    .container { max-width: 900px; margin: 0 auto; padding: 20px; }
+    .container { max-width: 950px; margin: 0 auto; padding: 20px; }
+    
+    /* Header */
     .header { background: linear-gradient(135deg, #0F1E33 0%, #1B3A5C 60%, #2C5AA0 100%); padding: 16px 24px; color: #FFF; border-radius: 12px 12px 0 0; display: flex; align-items: center; gap: 14px; }
-    .header img { height: 40px; }
-    .header h1 { font-size: 18px; font-weight: 700; }
+    .header img { height: 45px; }
+    .header h1 { font-size: 20px; font-weight: 700; }
     .header p { font-size: 11px; opacity: 0.7; margin-top: 2px; }
+    
+    /* Tabs */
+    .tabs { display: flex; background: #1B3A5C; }
+    .tab { flex: 1; padding: 14px 20px; text-align: center; cursor: pointer; color: rgba(255,255,255,0.6); font-weight: 600; font-size: 13px; border-bottom: 3px solid transparent; transition: all 0.2s; }
+    .tab:hover { color: rgba(255,255,255,0.9); background: rgba(255,255,255,0.05); }
+    .tab.active { color: #FFF; border-bottom-color: #C8102E; background: rgba(255,255,255,0.1); }
+    .tab-icon { font-size: 18px; margin-right: 8px; }
+    
+    /* Card */
     .card { background: #FFF; border-radius: 0 0 12px 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
     .section { padding: 24px; border-bottom: 1px solid #E2E8F0; }
     .section:last-child { border-bottom: none; }
     .section-title { font-size: 12px; font-weight: 700; color: #1B3A5C; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
-    .section-title span { font-size: 16px; }
     
-    /* Upload area */
+    /* Upload */
     .upload-zone { border: 2px dashed #CBD5E1; border-radius: 10px; padding: 40px; text-align: center; cursor: pointer; transition: all 0.2s; }
     .upload-zone:hover, .upload-zone.dragover { border-color: #1B3A5C; background: #F8FAFC; }
-    .upload-zone.has-file { border-color: #059669; background: #F0FDF4; }
+    .upload-zone.has-file { border-color: #10B981; background: #ECFDF5; }
     .upload-icon { font-size: 36px; margin-bottom: 10px; }
-    .upload-text { font-size: 14px; color: #64748B; }
+    .upload-text { color: #64748B; font-size: 13px; }
     .upload-text strong { color: #1B3A5C; }
-    .file-info { margin-top: 12px; padding: 10px 16px; background: #FFF; border-radius: 6px; display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: #065F46; }
     
-    /* Form elements */
-    label { display: block; font-size: 12px; font-weight: 600; color: #475569; margin-bottom: 6px; }
-    select, textarea, input[type="text"], input[type="password"] { width: 100%; padding: 10px 12px; border: 1px solid #E2E8F0; border-radius: 8px; font-size: 14px; transition: border-color 0.2s; }
-    select:focus, textarea:focus, input:focus { outline: none; border-color: #1B3A5C; }
-    textarea { resize: vertical; min-height: 100px; font-family: inherit; }
-    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
-    .form-group { margin-bottom: 16px; }
-    .hint { font-size: 11px; color: #94A3B8; margin-top: 4px; }
+    /* File info table */
+    .file-table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 13px; }
+    .file-table th { text-align: left; padding: 8px 12px; background: #F8FAFC; color: #1B3A5C; font-weight: 600; border-bottom: 2px solid #E2E8F0; }
+    .file-table td { padding: 8px 12px; border-bottom: 1px solid #E2E8F0; color: #374151; }
+    .file-table tr:last-child td { border-bottom: none; }
     
     /* Buttons */
-    .btn { padding: 12px 24px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; border: none; transition: all 0.2s; display: inline-flex; align-items: center; gap: 8px; }
-    .btn-primary { background: #1B3A5C; color: #FFF; }
-    .btn-primary:hover { background: #0F1E33; }
-    .btn-primary:disabled { background: #94A3B8; cursor: not-allowed; }
-    .btn-success { background: #059669; color: #FFF; }
-    .btn-success:hover { background: #047857; }
-    .btn-outline { background: #FFF; color: #1B3A5C; border: 1px solid #E2E8F0; }
-    .btn-outline:hover { background: #F8FAFC; }
-    .btn-group { display: flex; gap: 10px; flex-wrap: wrap; }
+    .btn { padding: 12px 24px; border-radius: 8px; font-weight: 600; font-size: 13px; cursor: pointer; border: none; transition: all 0.2s; display: inline-flex; align-items: center; gap: 8px; }
+    .btn-primary { background: linear-gradient(135deg, #1B3A5C, #2C5AA0); color: #FFF; }
+    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(27,58,92,0.3); }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+    .btn-success { background: linear-gradient(135deg, #059669, #10B981); color: #FFF; }
+    .btn-success:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(5,150,105,0.3); }
+    .btn-group { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 15px; }
+    
+    /* Select */
+    select { width: 100%; padding: 10px 12px; border: 1px solid #E2E8F0; border-radius: 8px; font-size: 13px; background: #FFF; cursor: pointer; }
+    select:focus { outline: none; border-color: #1B3A5C; }
     
     /* Results */
-    .results { background: #F8FAFC; border-radius: 8px; padding: 16px; }
-    .result-item { display: flex; gap: 10px; padding: 10px 0; border-bottom: 1px solid #E2E8F0; font-size: 13px; line-height: 1.5; }
-    .result-item:last-child { border-bottom: none; }
-    .result-icon { font-size: 16px; flex-shrink: 0; }
-    .result-pass { color: #059669; }
-    .result-fail { color: #DC2626; }
-    .result-warn { color: #D97706; }
-    .result-info { color: #2563EB; }
+    .results-box { background: #F8FAFC; border-radius: 10px; padding: 20px; margin-top: 20px; }
+    .score { font-size: 42px; font-weight: 800; color: #1B3A5C; }
+    .score-label { font-size: 12px; color: #64748B; text-transform: uppercase; }
+    .summary { background: #FFF; border-left: 4px solid #1B3A5C; padding: 15px; margin: 15px 0; font-size: 13px; line-height: 1.6; color: #374151; }
+    
+    /* Checks */
+    .check-item { display: flex; align-items: flex-start; gap: 10px; padding: 10px 0; border-bottom: 1px solid #F1F5F9; }
+    .check-item:last-child { border-bottom: none; }
+    .check-icon { font-size: 18px; }
+    .check-pass { color: #10B981; }
+    .check-fail { color: #EF4444; }
+    .check-label { font-weight: 600; color: #1B3A5C; font-size: 13px; }
+    .check-note { font-size: 12px; color: #64748B; margin-top: 2px; }
+    
+    /* Issues */
+    .issue { padding: 12px 15px; border-radius: 8px; margin-bottom: 10px; font-size: 13px; }
+    .issue-error { background: #FEF2F2; border-left: 4px solid #EF4444; }
+    .issue-warning { background: #FFFBEB; border-left: 4px solid #F59E0B; }
+    .issue-info { background: #EFF6FF; border-left: 4px solid #3B82F6; }
+    .issue-title { font-weight: 600; color: #1E293B; margin-bottom: 4px; }
+    .issue-suggestion { color: #64748B; font-style: italic; }
+    
+    /* Priority list */
+    .priority-item { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid #F1F5F9; }
+    .priority-num { width: 28px; height: 28px; background: #C8102E; color: #FFF; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px; }
+    .priority-text { font-size: 13px; color: #374151; }
+    
+    /* Settings */
+    .settings-toggle { font-size: 12px; color: #64748B; cursor: pointer; display: flex; align-items: center; gap: 5px; }
+    .settings-toggle:hover { color: #1B3A5C; }
+    .settings-panel { background: #F8FAFC; padding: 15px; border-radius: 8px; margin-top: 10px; }
+    .settings-panel input { width: 100%; padding: 10px; border: 1px solid #E2E8F0; border-radius: 6px; font-family: monospace; font-size: 12px; }
+    
+    /* Formatted output preview */
+    .preview-section { background: #F8FAFC; border-radius: 8px; padding: 15px; margin-top: 15px; }
+    .preview-title { font-weight: 600; color: #1B3A5C; margin-bottom: 10px; font-size: 14px; }
+    .preview-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 12px; }
+    .preview-meta dt { color: #64748B; }
+    .preview-meta dd { color: #1E293B; font-weight: 500; }
+    .preview-sections { margin-top: 15px; max-height: 300px; overflow-y: auto; }
+    .preview-section-item { padding: 8px 12px; background: #FFF; border-radius: 6px; margin-bottom: 6px; font-size: 12px; }
+    .preview-section-num { color: #C8102E; font-weight: 600; }
+    .preview-section-title { color: #1B3A5C; font-weight: 500; }
+    .preview-section-chars { color: #94A3B8; font-size: 11px; }
     
     /* Loading */
-    .loading { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 40px; color: #64748B; }
-    .spinner { width: 24px; height: 24px; border: 3px solid #E2E8F0; border-top-color: #1B3A5C; border-radius: 50%; animation: spin 1s linear infinite; }
+    .loading { display: flex; align-items: center; gap: 10px; color: #64748B; font-size: 13px; }
+    .spinner { width: 20px; height: 20px; border: 2px solid #E2E8F0; border-top-color: #1B3A5C; border-radius: 50%; animation: spin 0.8s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
     
-    /* Settings toggle */
-    .settings-toggle { position: absolute; top: 16px; right: 16px; background: rgba(255,255,255,0.1); border: none; color: #FFF; width: 32px; height: 32px; border-radius: 6px; cursor: pointer; font-size: 16px; }
-    .settings-panel { background: #FFF; border: 1px solid #E2E8F0; border-radius: 8px; padding: 16px; margin-bottom: 20px; }
-    
-    /* Summary stats */
-    .summary-bar { display: flex; gap: 16px; margin-bottom: 16px; }
-    .summary-stat { flex: 1; padding: 12px; border-radius: 8px; text-align: center; }
-    .summary-stat.pass { background: #D1FAE5; color: #065F46; }
-    .summary-stat.fail { background: #FEE2E2; color: #991B1B; }
-    .summary-stat.warn { background: #FEF3C7; color: #92400E; }
-    .summary-num { font-size: 24px; font-weight: 700; }
-    .summary-label { font-size: 11px; text-transform: uppercase; }
-    
-    /* Preset chips */
-    .preset-requirements { background: #F0F5FF; border-radius: 6px; padding: 12px; margin-bottom: 12px; font-size: 12px; color: #1E40AF; }
-    .preset-requirements strong { display: block; margin-bottom: 6px; }
+    /* Footer */
+    .footer { text-align: center; padding: 20px; font-size: 11px; color: #94A3B8; }
   </style>
 </head>
 <body>
   <div id="root"></div>
   <script>
-const { useState, useRef, useCallback } = React;
+const { useState, useEffect } = React;
 
-// ═══════════════════════════════════════════════════════════════
-// POLICY TYPE PRESETS
-// ═══════════════════════════════════════════════════════════════
-
+// Policy type presets for review
 const POLICY_PRESETS = {
   "safeguarding": {
     name: "Safeguarding & Child Protection",
     requirements: `MANDATORY REQUIREMENTS:
 - Must reference KCSIE 2025 (not older versions)
-- Must reference Working Together 2023 (not 2025 - there is no 2025 version)
+- Must reference Working Together 2023 (NOT 2025 - there is no 2025 version)
 - Must include DSL contact details (Jason Tait)
 - Must define types of abuse (physical, emotional, sexual, neglect)
 - Must include procedures for reporting concerns
@@ -145,89 +172,84 @@ const POLICY_PRESETS = {
     requirements: `MANDATORY REQUIREMENTS:
 - Must reference Health and Safety at Work Act 1974
 - Must include risk assessment procedures
-- Must address first aid provisions
-- Must include fire safety procedures
+- Must address fire safety
+- Must include first aid provisions
 - Must address educational visits
-- Must include accident reporting (RIDDOR)
-- Must address lone working
-- Must include emergency procedures
+- Must include accident reporting
 - Must address contractor management`
   },
-  "hr": {
-    name: "HR / Staff",
+  "recruitment": {
+    name: "Safer Recruitment",
     requirements: `MANDATORY REQUIREMENTS:
-- Must reference safer recruitment procedures
+- Must reference KCSIE 2025 Part 3
 - Must include DBS check requirements
-- Must address staff code of conduct
-- Must include whistleblowing procedures
-- Must reference Disqualification under Childcare Act
-- Must address allegations against staff
-- Must include supervision and appraisal
-- Must reference single central record
+- Must address single central record
+- Must include interview procedures
+- Must address references and verification
+- Must include prohibition checks
 - Must address overseas checks for international staff`
-  },
-  "admissions": {
-    name: "Admissions",
-    requirements: `MANDATORY REQUIREMENTS:
-- Must be non-discriminatory (Equality Act 2010)
-- Must include SEND admissions procedures
-- Must address EAL considerations
-- Must include entry requirements
-- Must address scholarship/bursary provisions
-- Must include appeals process`
-  },
-  "send": {
-    name: "SEND",
-    requirements: `MANDATORY REQUIREMENTS:
-- Must reference SEND Code of Practice 2015
-- Must include graduated approach (assess, plan, do, review)
-- Must address SENCO responsibilities
-- Must include identification procedures
-- Must address reasonable adjustments
-- Must include EHCP procedures
-- Must address transition arrangements
-- Must reference Equality Act 2010`
-  },
-  "curriculum": {
-    name: "Curriculum",
-    requirements: `MANDATORY REQUIREMENTS:
-- Must meet Independent School Standards Part 1
-- Must include PSHE/RSE requirements
-- Must address British values
-- Must include assessment and reporting
-- Must address differentiation
-- Must include careers education (Gatsby benchmarks)
-- Must reference Relationships Education statutory guidance`
   },
   "complaints": {
     name: "Complaints",
     requirements: `MANDATORY REQUIREMENTS:
-- Must include informal and formal stages
-- Must specify timeframes at each stage
+- Must have clear staged process
+- Must include timescales
+- Must address informal and formal stages
 - Must include panel hearing procedures
-- Must address record keeping
-- Must include ISI reporting requirements
-- Must address confidentiality
+- Must reference record keeping
+- Must include appeals process`
+  },
+  "equality": {
+    name: "Equality & Diversity",
+    requirements: `MANDATORY REQUIREMENTS:
+- Must reference Equality Act 2010
+- Must address protected characteristics
+- Must include accessibility provisions
+- Must address discrimination and harassment
+- Must include monitoring and reporting
+- Must reference Public Sector Equality Duty`
+  },
+  "rshe": {
+    name: "RSHE (Relationships, Sex & Health Education)",
+    requirements: `MANDATORY REQUIREMENTS:
+- Must reference statutory RSHE guidance
+- Must include parent consultation
+- Must address right to withdraw
+- Must include age-appropriate content
+- Must address SEND considerations
+- Must reference Relationships Education statutory guidance`
+  },
+  "admissions": {
+    name: "Admissions",
+    requirements: `MANDATORY REQUIREMENTS:
+- Must include entry requirements
+- Must address SEND admissions
+- Must include assessment procedures
+- Must address international students
+- Must include waiting list procedures
 - Must include appeals process`
   },
   "data_protection": {
-    name: "Data Protection / Privacy",
+    name: "Data Protection & Privacy",
     requirements: `MANDATORY REQUIREMENTS:
 - Must reference UK GDPR and Data Protection Act 2018
 - Must include lawful bases for processing
 - Must address data subject rights
 - Must include retention schedules
 - Must address data breaches
-- Must include DPO contact details
-- Must address international transfers
 - Must include privacy notices`
   },
-  "custom": {
-    name: "Custom / Other",
-    requirements: ""
+  "other": {
+    name: "Other Policy",
+    requirements: `GENERAL REQUIREMENTS:
+- Clear purpose and scope
+- Defined roles and responsibilities
+- Review date specified
+- Compliant with relevant legislation`
   }
 };
 
+// TASIS template checks
 const TASIS_TEMPLATE_CHECKS = [
   { id: "safeguarding_stmt", label: "Safeguarding commitment statement", required: true },
   { id: "scope_stmt", label: "Whole-school scope statement (including Boarding/EYFS)", required: true },
@@ -240,79 +262,73 @@ const TASIS_TEMPLATE_CHECKS = [
   { id: "legislation_refs", label: "Legislation references current", required: false },
 ];
 
-// ═══════════════════════════════════════════════════════════════
-// MAIN COMPONENT
-// ═══════════════════════════════════════════════════════════════
-
-function PolicyReviewTool() {
+function PolicyTools() {
   // State
+  const [activeTab, setActiveTab] = useState('review'); // 'review' or 'format'
   const [apiKey, setApiKey] = useState(localStorage.getItem('tasis_api_key') || '');
-  const [showSettings, setShowSettings] = useState(!localStorage.getItem('tasis_api_key'));
+  const [showSettings, setShowSettings] = useState(false);
   const [file, setFile] = useState(null);
   const [fileText, setFileText] = useState('');
   const [policyType, setPolicyType] = useState('safeguarding');
-  const [customRequirements, setCustomRequirements] = useState('');
   const [loading, setLoading] = useState(false);
-  const [results, setResults] = useState(null);
-  const [restructured, setRestructured] = useState(null);
-  const [restructuring, setRestructuring] = useState(false);
-  const fileInputRef = useRef(null);
+  
+  // Review state
+  const [reviewResults, setReviewResults] = useState(null);
+  
+  // Format state
+  const [formatResults, setFormatResults] = useState(null);
 
   // Save API key
-  const saveApiKey = () => {
-    localStorage.setItem('tasis_api_key', apiKey);
-    setShowSettings(false);
-  };
+  useEffect(() => {
+    if (apiKey) localStorage.setItem('tasis_api_key', apiKey);
+  }, [apiKey]);
 
-  // File handling
-  const handleFile = async (f) => {
+  // File reading
+  const readFile = async (f) => {
     setFile(f);
-    setResults(null);
-    setRestructured(null);
+    setReviewResults(null);
+    setFormatResults(null);
+    
+    const ext = f.name.split('.').pop().toLowerCase();
     
     try {
-      let text = '';
-      const ext = f.name.split('.').pop().toLowerCase();
-      
-      if (ext === 'txt' || ext === 'md') {
-        text = await f.text();
+      if (ext === 'txt') {
+        setFileText(await f.text());
       } else if (ext === 'docx') {
         const arrayBuffer = await f.arrayBuffer();
         const result = await mammoth.extractRawText({ arrayBuffer });
-        text = result.value;
+        setFileText(result.value);
       } else if (ext === 'pdf') {
         const arrayBuffer = await f.arrayBuffer();
         const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-        const pages = [];
+        let text = '';
         for (let i = 1; i <= pdf.numPages; i++) {
           const page = await pdf.getPage(i);
           const content = await page.getTextContent();
-          pages.push(content.items.map(item => item.str).join(' '));
+          text += content.items.map(item => item.str).join(' ') + '\n';
         }
-        text = pages.join('\n\n');
+        setFileText(text);
+      } else {
+        alert('Please upload a .txt, .docx, or .pdf file');
+        setFile(null);
       }
-      
-      setFileText(text);
     } catch (e) {
       alert('Error reading file: ' + e.message);
+      setFile(null);
     }
   };
 
-  const handleDrop = (e) => {
-    e.preventDefault();
-    e.currentTarget.classList.remove('dragover');
-    if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
-  };
-
-  // Analyse policy
-  const analysePolicy = async () => {
+  // ═══════════════════════════════════════════════════════════════
+  // TAB 1: POLICY REVIEW (AI-powered compliance check)
+  // ═══════════════════════════════════════════════════════════════
+  
+  const runReview = async () => {
     if (!fileText || !apiKey) return;
     
     setLoading(true);
-    setResults(null);
+    setReviewResults(null);
     
     const preset = POLICY_PRESETS[policyType];
-    const requirements = preset.requirements + (customRequirements ? '\n\nADDITIONAL REQUIREMENTS:\n' + customRequirements : '');
     
     const systemPrompt = `You are a UK school policy compliance reviewer for TASIS The American School in England.
 
@@ -357,7 +373,7 @@ Respond in JSON format:
     const userPrompt = `POLICY TYPE: ${preset.name}
 
 SPECIFIC REQUIREMENTS FOR THIS POLICY:
-${requirements}
+${preset.requirements}
 
 POLICY DOCUMENT TO REVIEW:
 ${fileText.substring(0, 80000)}`;
@@ -379,83 +395,74 @@ ${fileText.substring(0, 80000)}`;
         })
       });
 
-      if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
-      }
+      if (!response.ok) throw new Error(`API error: ${response.status}`);
 
       const data = await response.json();
       const text = data.content[0].text;
       
-      // Extract JSON from response
+      // Parse JSON response
       const jsonMatch = text.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
-        setResults(JSON.parse(jsonMatch[0]));
+        const cleanJSON = (str) => {
+          let inString = false, escaped = false, result = '';
+          for (let i = 0; i < str.length; i++) {
+            const char = str[i];
+            if (escaped) { result += char; escaped = false; continue; }
+            if (char === '\\') { escaped = true; result += char; continue; }
+            if (char === '"') { inString = !inString; result += char; continue; }
+            if (inString) {
+              if (char === '\n') result += '\\n';
+              else if (char === '\r') result += '';
+              else if (char === '\t') result += '\\t';
+              else if (char.charCodeAt(0) < 32) result += ' ';
+              else result += char;
+            } else result += char;
+          }
+          return result;
+        };
+        setReviewResults(JSON.parse(cleanJSON(jsonMatch[0])));
       } else {
         throw new Error('Could not parse response');
       }
     } catch (e) {
-      alert('Error analysing policy: ' + e.message);
+      alert('Error reviewing policy: ' + e.message);
     } finally {
       setLoading(false);
     }
   };
 
-  // Restructure policy into TASIS template
-  const restructurePolicy = async () => {
+  // ═══════════════════════════════════════════════════════════════
+  // TAB 2: POLICY FORMATTER (JavaScript-based, preserves content)
+  // ═══════════════════════════════════════════════════════════════
+  
+  const runFormat = async () => {
     if (!fileText || !apiKey) return;
     
-    setRestructuring(true);
+    setLoading(true);
+    setFormatResults(null);
     
-    const preset = POLICY_PRESETS[policyType];
-    
-    // Strict verbatim extraction prompt
-    const systemPrompt = `You are a DATA EXTRACTOR. Your job is to COPY content from a policy document into JSON format.
-
-CRITICAL: DO NOT SUMMARIZE. DO NOT REDUCE. DO NOT EDIT. DO NOT REWRITE.
-
-This is a COPY operation. Every single word, bullet point, paragraph, and sentence from the original must appear in your output. If a section has 500 words, your output must have 500 words. If it has 50 bullet points, output 50 bullet points.
-
-Your ONLY job is to:
-1. Identify the metadata (title, version, dates, etc.)
-2. Identify section boundaries (where one section ends and another begins)
-3. COPY the COMPLETE content of each section into the JSON structure
-
-JSON STRUCTURE:
+    try {
+      // Step 1: AI extracts ONLY metadata (small task)
+      const metadataPrompt = `Extract ONLY the metadata from this policy. Return JSON:
 {
   "policyTitle": "exact title",
   "shortCode": "e.g. SCP, BEH",
   "version": "e.g. 5.0",
-  "datePublished": "date string",
-  "dateRatified": "date string",
-  "reviewDate": "date string",
+  "datePublished": "date",
+  "dateRatified": "date",
+  "reviewDate": "date",
   "responsibleArea": "owner",
   "infoSharingCategory": "PUBLIC or INTERNAL",
   "scope": "scope statement",
-  "legislationReferenced": ["list of laws/guidance cited"],
-  "sections": [
-    {
-      "number": "section number exactly as shown",
-      "title": "section title exactly as shown", 
-      "content": "COMPLETE VERBATIM CONTENT - every word, every bullet, every paragraph"
-    }
-  ],
+  "legislationReferenced": ["laws cited"],
   "signatories": [{"role": "role", "name": "name", "date": "date"}],
-  "crossReferences": ["related policies mentioned"]
+  "crossReferences": ["related policies"]
 }
 
-JSON RULES:
-- Use \\n for line breaks within content strings
-- Escape quotes as \\"
-- Return ONLY the JSON object
+First 10000 characters of document:
+${fileText.substring(0, 10000)}`;
 
-REMEMBER: If the original section has 3 pages of content, your JSON must contain 3 pages of content. DO NOT SHORTEN ANYTHING.`;
-
-    const userPrompt = `COPY this ${preset.name} policy into JSON format. Include EVERY WORD of EVERY SECTION - do not summarize or shorten anything:
-
-${fileText.substring(0, 80000)}`;
-
-    try {
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
+      const metaResponse = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -465,938 +472,499 @@ ${fileText.substring(0, 80000)}`;
         },
         body: JSON.stringify({
           model: 'claude-sonnet-4-20250514',
-          max_tokens: 64000,
+          max_tokens: 2000,
           temperature: 0,
-          messages: [{ role: 'user', content: userPrompt }],
-          system: systemPrompt
+          messages: [{ role: 'user', content: metadataPrompt }]
         })
       });
 
-      if (!response.ok) {
-        const errText = await response.text();
-        throw new Error(`API error ${response.status}: ${errText.substring(0, 200)}`);
+      if (!metaResponse.ok) throw new Error(`API error: ${metaResponse.status}`);
+
+      const metaData = await metaResponse.json();
+      let metaText = metaData.content[0].text;
+      
+      // Parse metadata
+      metaText = metaText.replace(/```json\s*/g, '').replace(/```\s*/g, '');
+      const metaStart = metaText.indexOf('{');
+      const metaEnd = metaText.lastIndexOf('}');
+      let metadata = {};
+      
+      if (metaStart !== -1 && metaEnd !== -1) {
+        try {
+          metadata = JSON.parse(metaText.substring(metaStart, metaEnd + 1));
+        } catch (e) {
+          console.warn('Metadata parse warning:', e.message);
+        }
       }
 
-      const data = await response.json();
+      // Step 2: JavaScript parses sections (NO AI - preserves all content)
+      const sections = parseSections(fileText);
       
-      // Check for truncation - policy may be too long
-      if (data.stop_reason === 'max_tokens') {
-        throw new Error('Policy too long - the formatted output was truncated. The document may be too large to process in one pass.');
-      }
-      
-      const text = data.content[0].text;
-      
-      // Try to extract JSON
-      let jsonStr = text;
-      
-      // Remove markdown code blocks if present
-      jsonStr = jsonStr.replace(/```json\s*/g, '').replace(/```\s*/g, '');
-      
-      // Find the JSON object
-      const startIdx = jsonStr.indexOf('{');
-      const endIdx = jsonStr.lastIndexOf('}');
-      
-      if (startIdx === -1 || endIdx === -1) {
-        throw new Error('No JSON object found in response');
-      }
-      
-      jsonStr = jsonStr.substring(startIdx, endIdx + 1);
-      
-      // Clean problematic characters inside strings
-      const cleanJSON = (str) => {
-        let inString = false;
-        let escaped = false;
-        let result = '';
-        
-        for (let i = 0; i < str.length; i++) {
-          const char = str[i];
-          
-          if (escaped) {
-            result += char;
-            escaped = false;
-            continue;
-          }
-          
-          if (char === '\\') {
-            escaped = true;
-            result += char;
-            continue;
-          }
-          
-          if (char === '"') {
-            inString = !inString;
-            result += char;
-            continue;
-          }
-          
-          if (inString) {
-            if (char === '\n') result += '\\n';
-            else if (char === '\r') result += '';
-            else if (char === '\t') result += '\\t';
-            else if (char.charCodeAt(0) < 32) result += ' ';
-            else result += char;
-          } else {
-            result += char;
-          }
-        }
-        return result;
+      // Combine
+      const result = {
+        policyTitle: metadata.policyTitle || 'Policy Document',
+        shortCode: metadata.shortCode || 'POL',
+        version: metadata.version || '1.0',
+        datePublished: metadata.datePublished || '',
+        dateRatified: metadata.dateRatified || '',
+        reviewDate: metadata.reviewDate || '',
+        responsibleArea: metadata.responsibleArea || '',
+        infoSharingCategory: metadata.infoSharingCategory || 'PUBLIC',
+        scope: metadata.scope || 'the whole school including Boarding and the Early Years',
+        legislationReferenced: metadata.legislationReferenced || [],
+        signatories: metadata.signatories || [
+          { role: 'Head of School', name: 'Bryan Nixon', date: '' },
+          { role: 'Chair of Board', name: 'David King', date: '' }
+        ],
+        crossReferences: metadata.crossReferences || [],
+        sections: sections,
+        originalLength: fileText.length,
+        parsedLength: sections.reduce((sum, s) => sum + s.content.length, 0)
       };
       
-      jsonStr = cleanJSON(jsonStr);
-      
-      // Try to parse
-      let parsed;
-      try {
-        parsed = JSON.parse(jsonStr);
-      } catch (e1) {
-        // Try fixing common issues
-        jsonStr = jsonStr
-          .replace(/,\s*}/g, '}')  // trailing commas
-          .replace(/,\s*]/g, ']')  // trailing commas in arrays
-          .replace(/:\s*,/g, ': "",')  // empty values
-          .replace(/:\s*}/g, ': ""}');  // empty last values
-        
-        try {
-          parsed = JSON.parse(jsonStr);
-        } catch (e2) {
-          console.error('JSON parse failed:', e2.message);
-          console.error('First 1000 chars:', jsonStr.substring(0, 1000));
-          throw new Error('Could not parse response. The document may be too complex. Try a shorter document or contact support.');
-        }
-      }
-      
-      // Validate minimum structure
-      if (!parsed.policyTitle && !parsed.sections) {
-        throw new Error('Response missing required fields. Please try again.');
-      }
-      
-      // Check if content might have been summarized (output much shorter than input)
-      const totalOutputChars = (parsed.sections || []).reduce((sum, s) => sum + (s.content?.length || 0), 0);
-      const inputChars = fileText.length;
-      const ratio = totalOutputChars / inputChars;
-      
-      if (ratio < 0.3 && inputChars > 5000) {
-        console.warn(`Content ratio: ${(ratio * 100).toFixed(1)}% - output may be summarized`);
-        const proceed = confirm(
-          `Warning: The formatted output appears shorter than the original (${(ratio * 100).toFixed(0)}% of original length).\n\n` +
-          `This may indicate content was summarized rather than preserved verbatim.\n\n` +
-          `Click OK to use this output anyway, or Cancel to try again.`
-        );
-        if (!proceed) {
-          throw new Error('Cancelled - please try again');
-        }
-      }
-      
-      setRestructured(parsed);
+      setFormatResults(result);
       
     } catch (e) {
-      console.error('Restructure error:', e);
       alert('Error formatting policy: ' + e.message);
     } finally {
-      setRestructuring(false);
+      setLoading(false);
     }
   };
 
-  // TASIS Brand Colors
-  const TASIS_NAVY = [30, 58, 95];      // #1E3A5F
-  const TASIS_RED = [200, 16, 46];      // #C8102E
-  const TASIS_GREY = [100, 116, 139];
-  const TASIS_LIGHT = [248, 250, 252];
-  const WHITE = [255, 255, 255];
-  const BLACK = [0, 0, 0];
-
-  // Load logo for PDF - returns data and aspect ratio
-  const loadLogoForPDF = () => {
-    return new Promise((resolve) => {
-      const img = new Image();
-      img.crossOrigin = 'Anonymous';
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        canvas.width = img.width;
-        canvas.height = img.height;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0);
-        resolve({
-          data: canvas.toDataURL('image/png'),
-          width: img.width,
-          height: img.height,
-          aspectRatio: img.width / img.height
+  // JavaScript section parser - preserves ALL content
+  const parseSections = (text) => {
+    const sections = [];
+    
+    // Multiple patterns to catch different numbering styles
+    const patterns = [
+      /^(\d+(?:\.\d+)*)[.\s:)\]]+\s*([A-Z][^\n]{0,120})/gm,  // 1. Title or 1 Title or 1) Title
+      /^(Section\s+\d+)[.\s:]+\s*([A-Z][^\n]{0,120})/gim,     // Section 1: Title
+      /^([A-Z])[.\s:)\]]+\s*([A-Z][^\n]{0,120})/gm,           // A. Title
+    ];
+    
+    let allMatches = [];
+    
+    for (const pattern of patterns) {
+      const matches = [...text.matchAll(pattern)];
+      for (const match of matches) {
+        allMatches.push({
+          number: match[1].replace(/^Section\s+/i, ''),
+          title: match[2].trim(),
+          index: match.index,
+          fullMatch: match[0]
         });
-      };
-      img.onerror = () => resolve(null);
-      img.src = 'https://raw.githubusercontent.com/Daddymac1969/Orah-passes/main/New%20TE%20Logo.png';
-    });
+      }
+    }
+    
+    // Sort by position in document
+    allMatches.sort((a, b) => a.index - b.index);
+    
+    // Remove duplicates (same position)
+    allMatches = allMatches.filter((m, i, arr) => 
+      i === 0 || m.index !== arr[i-1].index
+    );
+    
+    if (allMatches.length === 0) {
+      // No sections found - return entire document
+      return [{
+        number: '1',
+        title: 'Policy Content',
+        content: text.trim()
+      }];
+    }
+    
+    // Extract content between headers
+    for (let i = 0; i < allMatches.length; i++) {
+      const match = allMatches[i];
+      const startPos = match.index + match.fullMatch.length;
+      const endPos = (i < allMatches.length - 1) ? allMatches[i + 1].index : text.length;
+      
+      const content = text.substring(startPos, endPos).trim();
+      
+      sections.push({
+        number: match.number,
+        title: match.title,
+        content: content
+      });
+    }
+    
+    return sections;
   };
 
-  // Generate formatted policy as HTML with professional print styles
-  const generateRestructuredHTML = () => {
-    if (!restructured) return;
+  // Generate HTML output
+  const downloadHTML = () => {
+    if (!formatResults) return;
     
-    const logoUrl = 'https://raw.githubusercontent.com/Daddymac1969/Orah-passes/main/New%20TE%20Logo.png';
-    const escapeHtml = (str) => (str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    const r = formatResults;
+    const escapeHtml = (s) => (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     
     const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${escapeHtml(restructured.policyTitle) || 'Policy Document'}</title>
+  <title>${escapeHtml(r.policyTitle)}</title>
   <style>
-    /* === PRINT STYLES === */
-    @page {
-      size: A4;
-      margin: 15mm 20mm 20mm 20mm;
-    }
-    
-    @media print {
-      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-      body { background: white !important; }
-      .no-print { display: none !important; }
-      .page { box-shadow: none !important; margin: 0 !important; padding: 0 !important; }
-      .section { page-break-inside: avoid; }
-      .page-break { page-break-before: always; }
-      .header { position: running(header); }
-      @page { @top-center { content: element(header); } }
-    }
-    
-    /* === SCREEN STYLES === */
+    @page { size: A4; margin: 15mm 20mm; }
+    @media print { * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; } .no-print { display: none !important; } .section { page-break-inside: avoid; } }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    
-    body {
-      font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, 'Helvetica Neue', sans-serif;
-      font-size: 10.5pt;
-      line-height: 1.6;
-      color: #1a1a1a;
-      background: #e5e7eb;
-    }
-    
-    .page {
-      background: white;
-      max-width: 210mm;
-      min-height: 297mm;
-      margin: 20px auto;
-      padding: 0;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.15);
-    }
-    
-    /* Header */
-    .header {
-      background: linear-gradient(135deg, #1E3A5F 0%, #2a4a6f 100%);
-      color: white;
-      padding: 18px 25px;
-      display: flex;
-      align-items: center;
-      gap: 18px;
-      border-bottom: 4px solid #C8102E;
-    }
-    .header img { height: 55px; width: auto; }
-    .header-text h1 { font-size: 15pt; font-weight: 600; margin-bottom: 3px; letter-spacing: -0.3px; }
+    body { font-family: 'Segoe UI', -apple-system, sans-serif; font-size: 10.5pt; line-height: 1.6; color: #1a1a1a; background: #e5e7eb; }
+    .page { background: white; max-width: 210mm; margin: 20px auto; box-shadow: 0 4px 20px rgba(0,0,0,0.15); }
+    .header { background: linear-gradient(135deg, #1E3A5F, #2a4a6f); color: white; padding: 18px 25px; display: flex; align-items: center; gap: 18px; border-bottom: 4px solid #C8102E; }
+    .header img { height: 55px; }
+    .header-text h1 { font-size: 15pt; font-weight: 600; margin-bottom: 3px; }
     .header-text p { font-size: 9pt; opacity: 0.85; }
-    
-    /* Content area */
-    .content { padding: 25px 30px 30px; }
-    
-    /* Safeguarding box */
-    .safeguarding-box {
-      background: linear-gradient(to right, #f0f9ff, #f8fafc);
-      border-left: 4px solid #1E3A5F;
-      padding: 14px 18px;
-      margin-bottom: 22px;
-      font-style: italic;
-      color: #1E3A5F;
-      font-size: 9.5pt;
-      line-height: 1.5;
-    }
-    
+    .content { padding: 25px 30px; }
+    .safeguarding-box { background: linear-gradient(to right, #f0f9ff, #f8fafc); border-left: 4px solid #1E3A5F; padding: 14px 18px; margin-bottom: 22px; font-style: italic; color: #1E3A5F; font-size: 9.5pt; }
     .scope-text { color: #64748b; font-size: 9pt; margin-bottom: 22px; }
-    
-    /* Section titles */
-    .meta-title {
-      color: #1E3A5F;
-      font-size: 11pt;
-      font-weight: 700;
-      padding-bottom: 6px;
-      margin-bottom: 12px;
-      border-bottom: 2px solid #C8102E;
-      display: inline-block;
-    }
-    
-    /* Metadata grid */
+    .meta-title { color: #1E3A5F; font-size: 11pt; font-weight: 700; padding-bottom: 6px; margin-bottom: 12px; border-bottom: 2px solid #C8102E; display: inline-block; }
     .meta-section { margin-bottom: 22px; }
-    .meta-grid {
-      display: grid;
-      grid-template-columns: 130px 1fr;
-      gap: 6px 12px;
-      font-size: 9.5pt;
-    }
-    .meta-label { color: #1E3A5F; font-weight: 600; }
-    .meta-value { color: #374151; }
-    
-    /* Contents */
+    .meta-table { width: 100%; border-collapse: collapse; font-size: 9.5pt; }
+    .meta-table th { text-align: left; padding: 6px 10px; background: #f8fafc; color: #1E3A5F; font-weight: 600; border: 1px solid #e2e8f0; width: 140px; }
+    .meta-table td { padding: 6px 10px; border: 1px solid #e2e8f0; color: #374151; }
     .contents { margin: 25px 0; }
     .contents ul { list-style: none; padding-left: 8px; columns: 2; column-gap: 30px; }
     .contents li { padding: 4px 0; font-size: 9.5pt; color: #374151; break-inside: avoid; }
     .contents li::before { content: "•"; color: #C8102E; margin-right: 8px; }
-    
-    /* Policy sections */
     .section { margin-bottom: 22px; page-break-inside: avoid; }
-    .section-header {
-      color: #1E3A5F;
-      font-size: 11pt;
-      font-weight: 700;
-      padding-bottom: 5px;
-      margin-bottom: 10px;
-      border-bottom: 2px solid #C8102E;
-    }
-    .section-content {
-      font-size: 10pt;
-      line-height: 1.65;
-      white-space: pre-wrap;
-      color: #1f2937;
-    }
-    
-    /* Footer */
-    .footer {
-      border-top: 1px solid #cbd5e1;
-      margin-top: 30px;
-      padding-top: 15px;
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-end;
-      font-size: 8pt;
-      color: #64748b;
-    }
+    .section-header { color: #1E3A5F; font-size: 11pt; font-weight: 700; padding-bottom: 5px; margin-bottom: 10px; border-bottom: 2px solid #C8102E; }
+    .section-content { font-size: 10pt; line-height: 1.65; white-space: pre-wrap; color: #1f2937; }
+    .footer { border-top: 1px solid #cbd5e1; margin-top: 30px; padding-top: 15px; display: flex; justify-content: space-between; font-size: 8pt; color: #64748b; }
     .footer-accent { width: 40px; height: 3px; background: #C8102E; margin-bottom: 6px; }
-    
-    /* Print button */
-    .print-btn {
-      position: fixed;
-      top: 25px;
-      right: 25px;
-      background: linear-gradient(135deg, #1E3A5F, #2a4a6f);
-      color: white;
-      border: none;
-      padding: 12px 24px;
-      border-radius: 8px;
-      cursor: pointer;
-      font-size: 11pt;
-      font-weight: 600;
-      box-shadow: 0 4px 12px rgba(30,58,95,0.3);
-      transition: transform 0.2s, box-shadow 0.2s;
-    }
-    .print-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(30,58,95,0.4); }
-    
-    /* Page break marker */
-    .content-start { margin-top: 20px; padding-top: 20px; border-top: 1px dashed #e5e7eb; }
+    .print-btn { position: fixed; top: 25px; right: 25px; background: linear-gradient(135deg, #1E3A5F, #2a4a6f); color: white; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; font-size: 11pt; font-weight: 600; box-shadow: 0 4px 12px rgba(30,58,95,0.3); }
+    .print-btn:hover { transform: translateY(-2px); }
   </style>
 </head>
 <body>
   <button class="print-btn no-print" onclick="window.print()">🖨️ Print / Save as PDF</button>
   
   <div class="page">
-    <!-- Header -->
     <div class="header">
-      <img src="${logoUrl}" alt="TASIS England">
+      <img src="https://raw.githubusercontent.com/Daddymac1969/Orah-passes/main/New%20TE%20Logo.png" alt="TASIS England">
       <div class="header-text">
-        <h1>${escapeHtml(restructured.policyTitle) || 'Policy Document'}</h1>
-        <p>${escapeHtml(restructured.shortCode) || 'POL'} v${escapeHtml(restructured.version) || '1.0'} &nbsp;•&nbsp; ${escapeHtml(restructured.datePublished) || ''}</p>
+        <h1>${escapeHtml(r.policyTitle)}</h1>
+        <p>${escapeHtml(r.shortCode)} v${escapeHtml(r.version)} &nbsp;•&nbsp; ${escapeHtml(r.datePublished)}</p>
       </div>
     </div>
     
     <div class="content">
-      <!-- Safeguarding Statement -->
       <div class="safeguarding-box">
         TASIS England is committed to safeguarding and promoting the welfare of students and expects all faculty, staff and volunteers to share this commitment. It is our aim that all students fulfil their potential.
       </div>
       
-      <p class="scope-text">
-        This policy applies to the whole school including ${escapeHtml(restructured.scope) || 'Boarding and the Early Years'}.
-        The current version of any policy is the version held on the TASIS England website.
-      </p>
+      <p class="scope-text">This policy applies to the whole school including ${escapeHtml(r.scope)}. The current version of any policy is the version held on the TASIS England website.</p>
       
-      <!-- Document Information -->
       <div class="meta-section">
         <div class="meta-title">Document Information</div>
-        <div class="meta-grid">
-          <span class="meta-label">Document Reference</span>
-          <span class="meta-value">TASIS_${escapeHtml(restructured.shortCode) || 'POL'}_v${escapeHtml(restructured.version) || '1.0'}</span>
-          <span class="meta-label">Version</span>
-          <span class="meta-value">v${escapeHtml(restructured.version) || '1.0'}</span>
-          <span class="meta-label">Published</span>
-          <span class="meta-value">${escapeHtml(restructured.datePublished) || '—'}</span>
-          <span class="meta-label">Ratified</span>
-          <span class="meta-value">${escapeHtml(restructured.dateRatified) || '—'}</span>
-          <span class="meta-label">Review Date</span>
-          <span class="meta-value">${escapeHtml(restructured.reviewDate) || '—'}</span>
-          <span class="meta-label">Owner</span>
-          <span class="meta-value">${escapeHtml(restructured.responsibleArea) || '—'}</span>
-          <span class="meta-label">Classification</span>
-          <span class="meta-value">${escapeHtml(restructured.infoSharingCategory) || 'PUBLIC'}</span>
-        </div>
+        <table class="meta-table">
+          <tr><th>Document Reference</th><td>TASIS_${escapeHtml(r.shortCode)}_v${escapeHtml(r.version)}</td></tr>
+          <tr><th>Version</th><td>v${escapeHtml(r.version)}</td></tr>
+          <tr><th>Published</th><td>${escapeHtml(r.datePublished) || '—'}</td></tr>
+          <tr><th>Ratified</th><td>${escapeHtml(r.dateRatified) || '—'}</td></tr>
+          <tr><th>Review Date</th><td>${escapeHtml(r.reviewDate) || '—'}</td></tr>
+          <tr><th>Owner</th><td>${escapeHtml(r.responsibleArea) || '—'}</td></tr>
+          <tr><th>Classification</th><td>${escapeHtml(r.infoSharingCategory)}</td></tr>
+        </table>
       </div>
       
-      <!-- Approved By -->
       <div class="meta-section">
         <div class="meta-title">Approved By</div>
-        <div class="meta-grid">
-          ${(restructured.signatories || [
-            { role: 'Head of School', name: 'Bryan Nixon', date: '' },
-            { role: 'Chair of Board', name: 'David King', date: '' }
-          ]).map(sig => `
-            <span class="meta-label">${escapeHtml(sig.role)}</span>
-            <span class="meta-value">${escapeHtml(sig.name) || '—'} ${sig.date ? '(' + escapeHtml(sig.date) + ')' : ''}</span>
-          `).join('')}
-        </div>
+        <table class="meta-table">
+          ${r.signatories.map(s => `<tr><th>${escapeHtml(s.role)}</th><td>${escapeHtml(s.name)}${s.date ? ' (' + escapeHtml(s.date) + ')' : ''}</td></tr>`).join('')}
+        </table>
       </div>
       
-      <!-- Legislation -->
-      ${restructured.legislationReferenced?.length ? `
+      ${r.legislationReferenced?.length ? `
       <div class="meta-section">
         <div class="meta-title">Statutory Compliance</div>
-        <p style="font-size: 9.5pt; color: #374151;">${restructured.legislationReferenced.map(l => escapeHtml(l)).join('; ')}</p>
-      </div>
-      ` : ''}
+        <p style="font-size: 9.5pt; color: #374151;">${r.legislationReferenced.map(l => escapeHtml(l)).join('; ')}</p>
+      </div>` : ''}
       
-      <!-- Contents -->
-      ${restructured.sections?.length ? `
+      ${r.sections?.length > 1 ? `
       <div class="contents">
         <div class="meta-title">Contents</div>
-        <ul>
-          ${restructured.sections.map(s => `<li>${escapeHtml(s.number)}. ${escapeHtml(s.title)}</li>`).join('')}
-        </ul>
-      </div>
-      ` : ''}
+        <ul>${r.sections.map(s => `<li>${escapeHtml(s.number)}. ${escapeHtml(s.title)}</li>`).join('')}</ul>
+      </div>` : ''}
       
-      <!-- Policy Content -->
-      <div class="content-start">
-        ${(restructured.sections || []).map(section => `
-        <div class="section">
-          <div class="section-header">${escapeHtml(section.number)}. ${escapeHtml(section.title)}</div>
-          <div class="section-content">${escapeHtml(section.content || '').replace(/\\n/g, '\n')}</div>
-        </div>
-        `).join('')}
-      </div>
+      ${r.sections.map(s => `
+      <div class="section">
+        <div class="section-header">${escapeHtml(s.number)}. ${escapeHtml(s.title)}</div>
+        <div class="section-content">${escapeHtml(s.content)}</div>
+      </div>`).join('')}
       
-      <!-- Cross References -->
-      ${restructured.crossReferences?.length ? `
+      ${r.crossReferences?.length ? `
       <div class="meta-section" style="margin-top: 25px;">
         <div class="meta-title">Related Policies</div>
-        <p style="font-size: 9.5pt; color: #374151;">${restructured.crossReferences.map(r => escapeHtml(r)).join('; ')}</p>
-      </div>
-      ` : ''}
+        <p style="font-size: 9.5pt; color: #374151;">${r.crossReferences.map(x => escapeHtml(x)).join('; ')}</p>
+      </div>` : ''}
       
-      <!-- Footer -->
       <div class="footer">
-        <div>
-          <div class="footer-accent"></div>
-          <span>TASIS England is committed to safeguarding and promoting the welfare of students.</span>
-        </div>
-        <div style="text-align: right;">
-          <strong>${escapeHtml(restructured.shortCode) || 'POL'}_v${escapeHtml(restructured.version) || '1.0'}</strong>
-        </div>
+        <div><div class="footer-accent"></div>TASIS England is committed to safeguarding and promoting the welfare of students.</div>
+        <div><strong>${escapeHtml(r.shortCode)}_v${escapeHtml(r.version)}</strong></div>
       </div>
     </div>
   </div>
 </body>
 </html>`;
 
-    // Download as HTML file
     const blob = new Blob([html], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    const filename = (restructured.policyTitle || 'Policy').replace(/[^a-zA-Z0-9 ]/g, '').replace(/\s+/g, '_');
-    a.download = filename + '_TASIS_v' + (restructured.version || '1.0') + '.html';
+    a.download = (r.policyTitle || 'Policy').replace(/[^a-zA-Z0-9 ]/g, '').replace(/\s+/g, '_') + '_TASIS.html';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
   };
 
-  // Generate review report PDF
-  const generatePDF = async () => {
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF({
-      orientation: 'portrait',
-      unit: 'mm',
-      format: 'a4'
-    });
-
-    const pageWidth = 210;
-    const pageHeight = 297;
-    const margin = 20;
-    const contentWidth = pageWidth - (margin * 2);
-    let y = margin;
-
-    // Load logo
-    const logo = await loadLogoForPDF();
-    const logoData = logo?.data;
-    const logoAspect = logo?.aspectRatio || 1;
-    
-    // Helper to add header
-    const addReviewHeader = () => {
-      doc.setFillColor(...TASIS_NAVY);
-      doc.rect(0, 0, pageWidth, 28, 'F');
-      doc.setFillColor(...TASIS_RED);
-      doc.rect(0, 28, pageWidth, 2, 'F');
-      
-      if (logoData) {
-        const logoH = 20;
-        const logoW = logoH * logoAspect;
-        doc.addImage(logoData, 'PNG', margin, 4, logoW, logoH);
-      }
-      
-      const textStart = logoData ? margin + 25 : margin;
-      doc.setTextColor(...WHITE);
-      doc.setFontSize(14);
-      doc.setFont('helvetica', 'bold');
-      doc.text('Policy Review Report', textStart, 15);
-      doc.setFontSize(9);
-      doc.setFont('helvetica', 'normal');
-      doc.text(new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }), pageWidth - margin, 15, { align: 'right' });
+  // File info for table display
+  const getFileInfo = () => {
+    if (!file) return null;
+    return {
+      name: file.name,
+      type: file.type || file.name.split('.').pop().toUpperCase(),
+      size: (file.size / 1024).toFixed(1) + ' KB',
+      chars: fileText.length.toLocaleString(),
+      words: fileText.split(/\s+/).filter(w => w).length.toLocaleString()
     };
-    
-    // Helper to add new page with header
-    const addNewPage = () => {
-      doc.addPage();
-      addReviewHeader();
-      y = 40;
-    };
-    
-    // Helper to check page break
-    const checkPageBreak = (needed) => {
-      if (y + needed > pageHeight - 20) {
-        addNewPage();
-      }
-    };
-
-    // First page header
-    addReviewHeader();
-    y = 40;
-
-    // Policy info
-    doc.setTextColor(...TASIS_NAVY);
-    doc.setFontSize(11);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Document:', margin, y);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(...BLACK);
-    doc.text(file?.name || 'Unknown', margin + 30, y);
-    y += 7;
-    doc.setTextColor(...TASIS_NAVY);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Policy Type:', margin, y);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(...BLACK);
-    doc.text(POLICY_PRESETS[policyType]?.name || policyType, margin + 30, y);
-    y += 7;
-    doc.setTextColor(...TASIS_NAVY);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Score:', margin, y);
-    doc.setFont('helvetica', 'normal');
-    const score = results?.overallScore || 0;
-    const scoreColor = score >= 80 ? [5, 150, 105] : score >= 60 ? [217, 119, 6] : [...TASIS_RED];
-    doc.setTextColor(...scoreColor);
-    doc.text(`${score}%`, margin + 30, y);
-    doc.setTextColor(...BLACK);
-
-    y += 12;
-
-    // Summary
-    doc.setFillColor(...TASIS_LIGHT);
-    doc.roundedRect(margin, y, contentWidth, 25, 2, 2, 'F');
-    doc.setDrawColor(...TASIS_NAVY);
-    doc.setLineWidth(0.3);
-    doc.roundedRect(margin, y, contentWidth, 25, 2, 2, 'S');
-    doc.setFontSize(10);
-    doc.setTextColor(...TASIS_GREY);
-    const summaryLines = doc.splitTextToSize(results?.summary || 'No summary available', contentWidth - 10);
-    doc.text(summaryLines, margin + 5, y + 8);
-    y += 30;
-
-    // Template Checks
-    doc.setTextColor(...TASIS_NAVY);
-    doc.setFontSize(12);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Template Compliance', margin, y);
-    doc.setDrawColor(...TASIS_RED);
-    doc.setLineWidth(0.8);
-    doc.line(margin, y + 2, margin + 45, y + 2);
-    y += 10;
-
-    const templateChecks = results?.templateChecks || [];
-    templateChecks.forEach(check => {
-      checkPageBreak(15);
-      doc.setFontSize(10);
-      const checkColor = check.pass ? [5, 150, 105] : [...TASIS_RED];
-      doc.setTextColor(...checkColor);
-      doc.text(check.pass ? '✓' : '✗', margin, y);
-      doc.setTextColor(...BLACK);
-      doc.setFont('helvetica', 'normal');
-      const label = TASIS_TEMPLATE_CHECKS.find(t => t.id === check.id)?.label || check.id;
-      doc.text(label, margin + 8, y);
-      if (check.note) {
-        doc.setTextColor(...TASIS_GREY);
-        doc.setFontSize(9);
-        doc.text(`(${check.note})`, margin + 8, y + 4);
-        y += 4;
-      }
-      y += 6;
-    });
-
-    y += 10;
-
-    // Content Issues
-    if (results?.contentIssues?.length > 0) {
-      checkPageBreak(50);
-      doc.setTextColor(...TASIS_NAVY);
-      doc.setFontSize(12);
-      doc.setFont('helvetica', 'bold');
-      doc.text('Issues Found', margin, y);
-      doc.setDrawColor(...TASIS_RED);
-      doc.setLineWidth(0.8);
-      doc.line(margin, y + 2, margin + 30, y + 2);
-      y += 10;
-
-      results.contentIssues.forEach(issue => {
-        checkPageBreak(20);
-        const color = issue.type === 'error' ? [...TASIS_RED] : issue.type === 'warning' ? [217, 119, 6] : [...TASIS_NAVY];
-        doc.setFillColor(...color);
-        doc.circle(margin + 2, y - 1, 1.5, 'F');
-        doc.setTextColor(...BLACK);
-        doc.setFontSize(10);
-        doc.setFont('helvetica', 'bold');
-        const issueLines = doc.splitTextToSize(issue.issue, contentWidth - 10);
-        doc.text(issueLines, margin + 8, y);
-        y += issueLines.length * 4 + 2;
-        if (issue.suggestion) {
-          doc.setFont('helvetica', 'italic');
-          doc.setTextColor(...TASIS_GREY);
-          doc.setFontSize(9);
-          const suggestionLines = doc.splitTextToSize('→ ' + issue.suggestion, contentWidth - 12);
-          doc.text(suggestionLines, margin + 10, y);
-          y += suggestionLines.length * 4;
-        }
-        y += 4;
-      });
-    }
-
-    y += 10;
-
-    // Priority Actions
-    if (results?.priorityActions?.length > 0) {
-      checkPageBreak(50);
-      doc.setTextColor(...TASIS_NAVY);
-      doc.setFontSize(12);
-      doc.setFont('helvetica', 'bold');
-      doc.text('Priority Actions', margin, y);
-      doc.setDrawColor(...TASIS_RED);
-      doc.setLineWidth(0.8);
-      doc.line(margin, y + 2, margin + 38, y + 2);
-      y += 10;
-
-      results.priorityActions.forEach((action, i) => {
-        checkPageBreak(15);
-        doc.setFillColor(...TASIS_NAVY);
-        doc.circle(margin + 2, y - 1, 3, 'F');
-        doc.setTextColor(...WHITE);
-        doc.setFontSize(8);
-        doc.text(String(i + 1), margin + 0.8, y + 0.5);
-        doc.setTextColor(...BLACK);
-        doc.setFontSize(10);
-        doc.setFont('helvetica', 'normal');
-        const actionLines = doc.splitTextToSize(action, contentWidth - 12);
-        doc.text(actionLines, margin + 10, y);
-        y += actionLines.length * 5 + 3;
-      });
-    }
-
-    // Footer on each page
-    const pageCount = doc.internal.getNumberOfPages();
-    for (let i = 1; i <= pageCount; i++) {
-      doc.setPage(i);
-      
-      // Footer line
-      doc.setDrawColor(...TASIS_NAVY);
-      doc.setLineWidth(0.3);
-      doc.line(margin, pageHeight - 15, pageWidth - margin, pageHeight - 15);
-      
-      // Red accent
-      doc.setDrawColor(...TASIS_RED);
-      doc.setLineWidth(0.8);
-      doc.line(margin, pageHeight - 14.5, margin + 25, pageHeight - 14.5);
-      
-      doc.setFontSize(8);
-      doc.setTextColor(...TASIS_GREY);
-      doc.text('TASIS England Policy Review Tool', margin, pageHeight - 10);
-      doc.text(`Page ${i} of ${pageCount}`, pageWidth - margin, pageHeight - 10, { align: 'right' });
-    }
-
-    doc.save(`Policy_Review_${file?.name?.replace(/\.[^/.]+$/, '') || 'Report'}_${new Date().toISOString().split('T')[0]}.pdf`);
   };
 
-  // Count results
-  const passCount = results?.templateChecks?.filter(c => c.pass).length || 0;
-  const failCount = results?.templateChecks?.filter(c => !c.pass).length || 0;
-  const issueCount = results?.contentIssues?.length || 0;
+  const fileInfo = getFileInfo();
+
+  // ═══════════════════════════════════════════════════════════════
+  // RENDER
+  // ═══════════════════════════════════════════════════════════════
 
   return React.createElement('div', { className: 'container' },
     // Header
-    React.createElement('div', { style: { position: 'relative' } },
-      React.createElement('div', { className: 'header' },
-        React.createElement('a', { href: 'https://www.tasisengland.org', target: '_blank' },
-          React.createElement('img', { src: 'https://raw.githubusercontent.com/Daddymac1969/Orah-passes/main/New%20TE%20Logo.png', alt: 'TASIS England' })
-        ),
-        React.createElement('div', null,
-          React.createElement('h1', null, 'Policy Review Tool'),
-          React.createElement('p', null, 'Upload • Analyse • Export')
-        )
-      ),
-      React.createElement('button', { className: 'settings-toggle', onClick: () => setShowSettings(!showSettings), title: 'Settings' }, '⚙️')
+    React.createElement('div', { className: 'header' },
+      React.createElement('img', { src: 'https://raw.githubusercontent.com/Daddymac1969/Orah-passes/main/New%20TE%20Logo.png', alt: 'TASIS' }),
+      React.createElement('div', null,
+        React.createElement('h1', null, 'TASIS Policy Tools'),
+        React.createElement('p', null, 'Review compliance • Format to template')
+      )
     ),
-
+    
+    // Tabs
+    React.createElement('div', { className: 'tabs' },
+      React.createElement('div', { 
+        className: `tab ${activeTab === 'review' ? 'active' : ''}`,
+        onClick: () => setActiveTab('review')
+      }, React.createElement('span', { className: 'tab-icon' }, '🔍'), 'Policy Review'),
+      React.createElement('div', { 
+        className: `tab ${activeTab === 'format' ? 'active' : ''}`,
+        onClick: () => setActiveTab('format')
+      }, React.createElement('span', { className: 'tab-icon' }, '📄'), 'Policy Formatter')
+    ),
+    
+    // Card
     React.createElement('div', { className: 'card' },
-      // Settings panel
-      showSettings && React.createElement('div', { className: 'section' },
-        React.createElement('div', { className: 'section-title' }, React.createElement('span', null, '🔑'), 'API Configuration'),
-        React.createElement('div', { className: 'form-group' },
-          React.createElement('label', null, 'Anthropic API Key'),
+      
+      // Settings
+      React.createElement('div', { className: 'section' },
+        React.createElement('div', { 
+          className: 'settings-toggle',
+          onClick: () => setShowSettings(!showSettings)
+        }, showSettings ? '▼' : '▶', ' API Settings'),
+        showSettings && React.createElement('div', { className: 'settings-panel' },
           React.createElement('input', {
             type: 'password',
+            placeholder: 'Enter Anthropic API Key',
             value: apiKey,
-            onChange: e => setApiKey(e.target.value),
-            placeholder: 'sk-ant-...'
-          }),
-          React.createElement('p', { className: 'hint' }, 'Get your key from console.anthropic.com. Stored in browser only.')
-        ),
-        React.createElement('button', { className: 'btn btn-primary', onClick: saveApiKey }, '💾 Save & Close')
+            onChange: (e) => setApiKey(e.target.value)
+          })
+        )
       ),
-
-      // Upload section
+      
+      // Upload
       React.createElement('div', { className: 'section' },
-        React.createElement('div', { className: 'section-title' }, React.createElement('span', null, '📄'), 'Upload Policy Document'),
+        React.createElement('div', { className: 'section-title' }, '📁 Upload Policy Document'),
         React.createElement('div', {
           className: `upload-zone ${file ? 'has-file' : ''}`,
-          onClick: () => fileInputRef.current?.click(),
-          onDrop: handleDrop,
-          onDragOver: e => { e.preventDefault(); e.currentTarget.classList.add('dragover'); },
-          onDragLeave: e => e.currentTarget.classList.remove('dragover')
+          onClick: () => document.getElementById('file-input').click(),
+          onDragOver: (e) => { e.preventDefault(); e.currentTarget.classList.add('dragover'); },
+          onDragLeave: (e) => e.currentTarget.classList.remove('dragover'),
+          onDrop: (e) => { e.preventDefault(); e.currentTarget.classList.remove('dragover'); if (e.dataTransfer.files[0]) readFile(e.dataTransfer.files[0]); }
         },
-          React.createElement('input', {
-            ref: fileInputRef,
-            type: 'file',
-            accept: '.pdf,.docx,.doc,.txt,.md',
-            style: { display: 'none' },
-            onChange: e => e.target.files[0] && handleFile(e.target.files[0])
-          }),
-          React.createElement('div', { className: 'upload-icon' }, file ? '✅' : '📁'),
+          React.createElement('div', { className: 'upload-icon' }, file ? '✅' : '📄'),
           React.createElement('div', { className: 'upload-text' },
-            file
-              ? React.createElement('span', null, React.createElement('strong', null, file.name), React.createElement('br'), `${(file.size / 1024).toFixed(1)} KB • ${fileText.length.toLocaleString()} characters extracted`)
-              : React.createElement('span', null, React.createElement('strong', null, 'Drop file here'), ' or click to browse', React.createElement('br'), 'Supports PDF, DOCX, TXT')
-          )
-        )
-      ),
-
-      // Requirements section
-      React.createElement('div', { className: 'section' },
-        React.createElement('div', { className: 'section-title' }, React.createElement('span', null, '📋'), 'Requirements'),
-        React.createElement('div', { className: 'form-row' },
-          React.createElement('div', null,
-            React.createElement('label', null, 'Policy Type'),
-            React.createElement('select', { value: policyType, onChange: e => setPolicyType(e.target.value) },
-              Object.entries(POLICY_PRESETS).map(([key, preset]) =>
-                React.createElement('option', { key, value: key }, preset.name)
-              )
-            )
-          )
+            file ? React.createElement('strong', null, file.name) : React.createElement(React.Fragment, null, 'Drop file here or ', React.createElement('strong', null, 'click to browse'))
+          ),
+          !file && React.createElement('div', { className: 'upload-text', style: { marginTop: '5px' } }, 'Supports .docx, .pdf, .txt')
         ),
-        policyType !== 'custom' && POLICY_PRESETS[policyType]?.requirements && React.createElement('div', { className: 'preset-requirements' },
-          React.createElement('strong', null, '✓ Preset requirements for ', POLICY_PRESETS[policyType].name, ':'),
-          POLICY_PRESETS[policyType].requirements.split('\n').slice(0, 6).join('\n'),
-          '...'
-        ),
-        React.createElement('div', { className: 'form-group' },
-          React.createElement('label', null, 'Additional Requirements (optional)'),
-          React.createElement('textarea', {
-            value: customRequirements,
-            onChange: e => setCustomRequirements(e.target.value),
-            placeholder: 'Add any specific requirements for this policy review...\n\nExamples:\n- Must include specific procedures for X\n- Must reference internal policy Y\n- Check that Z is up to date'
-          })
-        ),
-        React.createElement('button', {
-          className: 'btn btn-primary',
-          onClick: analysePolicy,
-          disabled: !file || !apiKey || loading
-        }, loading ? '⏳ Analysing...' : '🔍 Analyse Policy')
-      ),
-
-      // Loading
-      loading && React.createElement('div', { className: 'section' },
-        React.createElement('div', { className: 'loading' },
-          React.createElement('div', { className: 'spinner' }),
-          'Analysing policy against requirements...'
-        )
-      ),
-
-      // Results section
-      results && React.createElement('div', { className: 'section' },
-        React.createElement('div', { className: 'section-title' }, React.createElement('span', null, '📊'), 'Analysis Results'),
+        React.createElement('input', { id: 'file-input', type: 'file', accept: '.txt,.docx,.pdf', style: { display: 'none' }, onChange: (e) => e.target.files[0] && readFile(e.target.files[0]) }),
         
-        // Summary stats
-        React.createElement('div', { className: 'summary-bar' },
-          React.createElement('div', { className: 'summary-stat', style: { background: results.overallScore >= 80 ? '#D1FAE5' : results.overallScore >= 60 ? '#FEF3C7' : '#FEE2E2', color: results.overallScore >= 80 ? '#065F46' : results.overallScore >= 60 ? '#92400E' : '#991B1B' } },
-            React.createElement('div', { className: 'summary-num' }, results.overallScore, '%'),
-            React.createElement('div', { className: 'summary-label' }, 'Score')
+        // File info table
+        fileInfo && React.createElement('table', { className: 'file-table' },
+          React.createElement('thead', null,
+            React.createElement('tr', null,
+              React.createElement('th', null, 'File Name'),
+              React.createElement('th', null, 'Type'),
+              React.createElement('th', null, 'Size'),
+              React.createElement('th', null, 'Characters'),
+              React.createElement('th', null, 'Words')
+            )
           ),
-          React.createElement('div', { className: 'summary-stat pass' },
-            React.createElement('div', { className: 'summary-num' }, passCount),
-            React.createElement('div', { className: 'summary-label' }, 'Passed')
-          ),
-          React.createElement('div', { className: 'summary-stat fail' },
-            React.createElement('div', { className: 'summary-num' }, failCount),
-            React.createElement('div', { className: 'summary-label' }, 'Failed')
-          ),
-          React.createElement('div', { className: 'summary-stat warn' },
-            React.createElement('div', { className: 'summary-num' }, issueCount),
-            React.createElement('div', { className: 'summary-label' }, 'Issues')
-          )
-        ),
-
-        // Summary text
-        React.createElement('div', { style: { background: '#F8FAFC', padding: '12px 16px', borderRadius: '8px', marginBottom: '16px', fontSize: '14px', lineHeight: 1.6 } }, results.summary),
-
-        // Template checks
-        React.createElement('h4', { style: { fontSize: '13px', fontWeight: 600, color: '#1B3A5C', marginBottom: '10px' } }, 'Template Compliance'),
-        React.createElement('div', { className: 'results' },
-          results.templateChecks?.map((check, i) =>
-            React.createElement('div', { key: i, className: 'result-item' },
-              React.createElement('span', { className: `result-icon ${check.pass ? 'result-pass' : 'result-fail'}` }, check.pass ? '✓' : '✗'),
-              React.createElement('div', null,
-                React.createElement('strong', null, TASIS_TEMPLATE_CHECKS.find(t => t.id === check.id)?.label || check.id),
-                check.note && React.createElement('span', { style: { color: '#64748B', marginLeft: '8px' } }, '— ', check.note)
-              )
+          React.createElement('tbody', null,
+            React.createElement('tr', null,
+              React.createElement('td', null, fileInfo.name),
+              React.createElement('td', null, fileInfo.type),
+              React.createElement('td', null, fileInfo.size),
+              React.createElement('td', null, fileInfo.chars),
+              React.createElement('td', null, fileInfo.words)
             )
           )
-        ),
-
-        // Content issues
-        results.contentIssues?.length > 0 && React.createElement('div', { style: { marginTop: '20px' } },
-          React.createElement('h4', { style: { fontSize: '13px', fontWeight: 600, color: '#1B3A5C', marginBottom: '10px' } }, 'Issues Found'),
-          React.createElement('div', { className: 'results' },
-            results.contentIssues.map((issue, i) =>
-              React.createElement('div', { key: i, className: 'result-item' },
-                React.createElement('span', { className: `result-icon ${issue.type === 'error' ? 'result-fail' : issue.type === 'warning' ? 'result-warn' : 'result-info'}` },
-                  issue.type === 'error' ? '✗' : issue.type === 'warning' ? '⚠' : 'ℹ'
-                ),
+        )
+      ),
+      
+      // TAB CONTENT
+      activeTab === 'review' ? (
+        // ═══ REVIEW TAB ═══
+        React.createElement(React.Fragment, null,
+          React.createElement('div', { className: 'section' },
+            React.createElement('div', { className: 'section-title' }, '📋 Policy Type'),
+            React.createElement('select', { value: policyType, onChange: (e) => setPolicyType(e.target.value) },
+              Object.entries(POLICY_PRESETS).map(([key, val]) => 
+                React.createElement('option', { key, value: key }, val.name)
+              )
+            ),
+            React.createElement('div', { className: 'btn-group' },
+              React.createElement('button', {
+                className: 'btn btn-primary',
+                disabled: !file || !apiKey || loading,
+                onClick: runReview
+              }, loading ? React.createElement('span', { className: 'spinner' }) : '🔍', loading ? ' Analysing...' : ' Run Compliance Review')
+            )
+          ),
+          
+          // Review Results
+          reviewResults && React.createElement('div', { className: 'section' },
+            React.createElement('div', { className: 'section-title' }, '📊 Review Results'),
+            React.createElement('div', { className: 'results-box' },
+              React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: '20px' } },
                 React.createElement('div', null,
-                  React.createElement('strong', null, issue.issue),
-                  issue.location && React.createElement('span', { style: { color: '#64748B', fontSize: '12px', marginLeft: '8px' } }, '(', issue.location, ')'),
-                  issue.suggestion && React.createElement('div', { style: { color: '#059669', fontSize: '12px', marginTop: '4px' } }, '→ ', issue.suggestion)
+                  React.createElement('div', { className: 'score' }, reviewResults.overallScore + '%'),
+                  React.createElement('div', { className: 'score-label' }, 'Compliance Score')
+                ),
+                React.createElement('div', { className: 'summary' }, reviewResults.summary)
+              )
+            ),
+            
+            // Template checks
+            React.createElement('div', { style: { marginTop: '20px' } },
+              React.createElement('div', { className: 'section-title' }, '✓ Template Compliance'),
+              (reviewResults.templateChecks || []).map((check, i) => 
+                React.createElement('div', { key: i, className: 'check-item' },
+                  React.createElement('span', { className: `check-icon ${check.pass ? 'check-pass' : 'check-fail'}` }, check.pass ? '✓' : '✗'),
+                  React.createElement('div', null,
+                    React.createElement('div', { className: 'check-label' }, TASIS_TEMPLATE_CHECKS.find(t => t.id === check.id)?.label || check.id),
+                    check.note && React.createElement('div', { className: 'check-note' }, check.note)
+                  )
+                )
+              )
+            ),
+            
+            // Issues
+            (reviewResults.contentIssues?.length > 0) && React.createElement('div', { style: { marginTop: '20px' } },
+              React.createElement('div', { className: 'section-title' }, '⚠️ Issues Found'),
+              reviewResults.contentIssues.map((issue, i) => 
+                React.createElement('div', { key: i, className: `issue issue-${issue.type}` },
+                  React.createElement('div', { className: 'issue-title' }, issue.issue),
+                  React.createElement('div', { className: 'issue-suggestion' }, '→ ', issue.suggestion)
+                )
+              )
+            ),
+            
+            // Priority actions
+            (reviewResults.priorityActions?.length > 0) && React.createElement('div', { style: { marginTop: '20px' } },
+              React.createElement('div', { className: 'section-title' }, '🎯 Priority Actions'),
+              reviewResults.priorityActions.map((action, i) => 
+                React.createElement('div', { key: i, className: 'priority-item' },
+                  React.createElement('span', { className: 'priority-num' }, i + 1),
+                  React.createElement('span', { className: 'priority-text' }, action)
                 )
               )
             )
           )
-        ),
-
-        // Priority actions
-        results.priorityActions?.length > 0 && React.createElement('div', { style: { marginTop: '20px' } },
-          React.createElement('h4', { style: { fontSize: '13px', fontWeight: 600, color: '#1B3A5C', marginBottom: '10px' } }, 'Priority Actions'),
-          React.createElement('ol', { style: { paddingLeft: '20px', fontSize: '13px', lineHeight: 1.8 } },
-            results.priorityActions.map((action, i) =>
-              React.createElement('li', { key: i, style: { marginBottom: '6px' } }, action)
+        )
+      ) : (
+        // ═══ FORMAT TAB ═══
+        React.createElement(React.Fragment, null,
+          React.createElement('div', { className: 'section' },
+            React.createElement('div', { className: 'section-title' }, '📄 Format to TASIS Template'),
+            React.createElement('p', { style: { fontSize: '13px', color: '#64748B', marginBottom: '15px' } },
+              'This tool structures your policy into the TASIS template format. ',
+              React.createElement('strong', null, 'Content is preserved exactly as written'),
+              ' — only the layout changes.'
+            ),
+            React.createElement('div', { className: 'btn-group' },
+              React.createElement('button', {
+                className: 'btn btn-primary',
+                disabled: !file || !apiKey || loading,
+                onClick: runFormat
+              }, loading ? React.createElement('span', { className: 'spinner' }) : '⚙️', loading ? ' Processing...' : ' Extract & Format')
             )
-          )
-        ),
-
-        // Export buttons
-        React.createElement('div', { className: 'btn-group', style: { marginTop: '20px' } },
-          React.createElement('button', { className: 'btn btn-outline', onClick: generatePDF }, '📋 Download Review Report'),
-          React.createElement('button', { 
-            className: 'btn btn-primary', 
-            onClick: restructurePolicy,
-            disabled: restructuring
-          }, restructuring ? '⏳ Formatting...' : '📄 Format into TASIS Template')
-        )
-      ),
-
-      // Restructuring in progress
-      restructuring && React.createElement('div', { className: 'section' },
-        React.createElement('div', { className: 'loading' },
-          React.createElement('div', { className: 'spinner' }),
-          'Formatting policy into TASIS template...'
-        )
-      ),
-
-      // Restructured output
-      restructured && React.createElement('div', { className: 'section' },
-        React.createElement('div', { className: 'section-title' }, React.createElement('span', null, '📄'), 'Formatted Policy'),
-        
-        // Preview
-        React.createElement('div', { style: { background: '#F8FAFC', borderRadius: '8px', padding: '16px', marginBottom: '16px' } },
-          React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' } },
-            React.createElement('div', null,
-              React.createElement('h3', { style: { margin: 0, fontSize: '16px', color: '#1B3A5C' } }, restructured.policyTitle),
-              React.createElement('p', { style: { margin: '4px 0 0', fontSize: '12px', color: '#64748B' } }, 
-                `Version ${restructured.version || '1.0'} • ${restructured.responsibleArea || 'Not specified'} • Review: ${restructured.reviewDate || 'Not set'}`
+          ),
+          
+          // Format Results
+          formatResults && React.createElement('div', { className: 'section' },
+            React.createElement('div', { className: 'section-title' }, '✅ Formatted Policy Ready'),
+            
+            // Metadata preview
+            React.createElement('div', { className: 'preview-section' },
+              React.createElement('div', { className: 'preview-title' }, 'Extracted Metadata'),
+              React.createElement('table', { className: 'file-table' },
+                React.createElement('tbody', null,
+                  React.createElement('tr', null, React.createElement('td', { style: { fontWeight: 600, width: '140px' } }, 'Title'), React.createElement('td', null, formatResults.policyTitle)),
+                  React.createElement('tr', null, React.createElement('td', { style: { fontWeight: 600 } }, 'Short Code'), React.createElement('td', null, formatResults.shortCode)),
+                  React.createElement('tr', null, React.createElement('td', { style: { fontWeight: 600 } }, 'Version'), React.createElement('td', null, formatResults.version)),
+                  React.createElement('tr', null, React.createElement('td', { style: { fontWeight: 600 } }, 'Published'), React.createElement('td', null, formatResults.datePublished || '—')),
+                  React.createElement('tr', null, React.createElement('td', { style: { fontWeight: 600 } }, 'Review Date'), React.createElement('td', null, formatResults.reviewDate || '—')),
+                  React.createElement('tr', null, React.createElement('td', { style: { fontWeight: 600 } }, 'Owner'), React.createElement('td', null, formatResults.responsibleArea || '—'))
+                )
               )
             ),
-            React.createElement('span', { style: { 
-              background: '#D1FAE5', color: '#065F46', padding: '4px 10px', borderRadius: '4px', fontSize: '11px', fontWeight: 600 
-            }}, '✓ TASIS Template')
-          ),
-          
-          // Metadata preview
-          React.createElement('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', marginBottom: '12px' } },
-            React.createElement('div', { style: { background: '#FFF', padding: '8px', borderRadius: '4px', fontSize: '11px' } },
-              React.createElement('div', { style: { color: '#94A3B8', marginBottom: '2px' } }, 'Document Ref'),
-              React.createElement('div', { style: { fontWeight: 600 } }, `TASIS_${restructured.shortCode || 'POL'}_v${restructured.version || '1.0'}`)
-            ),
-            React.createElement('div', { style: { background: '#FFF', padding: '8px', borderRadius: '4px', fontSize: '11px' } },
-              React.createElement('div', { style: { color: '#94A3B8', marginBottom: '2px' } }, 'Sections'),
-              React.createElement('div', { style: { fontWeight: 600 } }, restructured.sections?.length || 0)
-            ),
-            React.createElement('div', { style: { background: '#FFF', padding: '8px', borderRadius: '4px', fontSize: '11px' } },
-              React.createElement('div', { style: { color: '#94A3B8', marginBottom: '2px' } }, 'Legislation Refs'),
-              React.createElement('div', { style: { fontWeight: 600 } }, restructured.legislationReferenced?.length || 0)
-            )
-          ),
-          
-          // Sections list
-          React.createElement('div', { style: { fontSize: '12px' } },
-            React.createElement('div', { style: { fontWeight: 600, color: '#475569', marginBottom: '6px' } }, 'Contents:'),
-            React.createElement('ol', { style: { margin: 0, paddingLeft: '20px', color: '#64748B' } },
-              (restructured.sections || []).slice(0, 8).map((s, i) => 
-                React.createElement('li', { key: i, style: { marginBottom: '2px' } }, s.title)
+            
+            // Sections preview
+            React.createElement('div', { className: 'preview-section', style: { marginTop: '15px' } },
+              React.createElement('div', { className: 'preview-title' }, 
+                `Sections Found (${formatResults.sections.length})`,
+                React.createElement('span', { style: { fontWeight: 'normal', color: '#64748B', marginLeft: '10px' } },
+                  `${formatResults.parsedLength.toLocaleString()} chars preserved of ${formatResults.originalLength.toLocaleString()} (${Math.round(formatResults.parsedLength / formatResults.originalLength * 100)}%)`
+                )
               ),
-              (restructured.sections || []).length > 8 && React.createElement('li', { style: { fontStyle: 'italic' } }, `...and ${restructured.sections.length - 8} more sections`)
+              React.createElement('div', { className: 'preview-sections' },
+                formatResults.sections.map((s, i) => 
+                  React.createElement('div', { key: i, className: 'preview-section-item' },
+                    React.createElement('span', { className: 'preview-section-num' }, s.number, '. '),
+                    React.createElement('span', { className: 'preview-section-title' }, s.title),
+                    React.createElement('span', { className: 'preview-section-chars' }, ' (', s.content.length.toLocaleString(), ' chars)')
+                  )
+                )
+              )
+            ),
+            
+            // Download button
+            React.createElement('div', { className: 'btn-group', style: { marginTop: '20px' } },
+              React.createElement('button', { className: 'btn btn-success', onClick: downloadHTML },
+                '📥 Download Formatted Policy (HTML)'
+              )
+            ),
+            React.createElement('p', { style: { fontSize: '11px', color: '#94A3B8', marginTop: '10px' } },
+              'Open the HTML file and use Print → Save as PDF for a professional document.'
             )
           )
-        ),
-        
-        // Download button
-        React.createElement('div', { className: 'btn-group' },
-          React.createElement('button', { className: 'btn btn-success', onClick: generateRestructuredHTML }, 
-            '📥 Download Formatted Policy (HTML)'
-          )
-        ),
-        
-        React.createElement('p', { style: { fontSize: '11px', color: '#94A3B8', marginTop: '12px' } },
-          'Opens in browser - use Print → Save as PDF if needed. Includes: cover page, metadata, signatory block, numbered sections.'
         )
       )
     ),
-
+    
     // Footer
-    React.createElement('div', { style: { textAlign: 'center', padding: '20px', fontSize: '11px', color: '#94A3B8' } },
-      '© 2026 TASIS England • Policy Review Tool'
-    )
+    React.createElement('div', { className: 'footer' }, '© 2026 TASIS England • Policy Tools')
   );
 }
 
-// Render
 const root = ReactDOM.createRoot(document.getElementById('root'));
-root.render(React.createElement(PolicyReviewTool));
+root.render(React.createElement(PolicyTools));
   </script>
 </body>
 </html>
