@@ -408,33 +408,51 @@ ${fileText.substring(0, 80000)}`;
     
     const preset = POLICY_PRESETS[policyType];
     
-    // Simpler prompt focused on extraction
-    const systemPrompt = `Extract policy metadata and sections. Return ONLY valid JSON, no other text.
+    // Strict verbatim extraction prompt
+    const systemPrompt = `You are a DATA EXTRACTOR. Your job is to COPY content from a policy document into JSON format.
+
+CRITICAL: DO NOT SUMMARIZE. DO NOT REDUCE. DO NOT EDIT. DO NOT REWRITE.
+
+This is a COPY operation. Every single word, bullet point, paragraph, and sentence from the original must appear in your output. If a section has 500 words, your output must have 500 words. If it has 50 bullet points, output 50 bullet points.
+
+Your ONLY job is to:
+1. Identify the metadata (title, version, dates, etc.)
+2. Identify section boundaries (where one section ends and another begins)
+3. COPY the COMPLETE content of each section into the JSON structure
 
 JSON STRUCTURE:
 {
-  "policyTitle": "string",
-  "shortCode": "string like SCP, BEH, etc",
-  "version": "string like 1.0",
-  "datePublished": "string",
-  "dateRatified": "string",
-  "reviewDate": "string",
-  "responsibleArea": "string",
+  "policyTitle": "exact title",
+  "shortCode": "e.g. SCP, BEH",
+  "version": "e.g. 5.0",
+  "datePublished": "date string",
+  "dateRatified": "date string",
+  "reviewDate": "date string",
+  "responsibleArea": "owner",
   "infoSharingCategory": "PUBLIC or INTERNAL",
-  "scope": "string describing scope",
-  "legislationReferenced": ["array of strings"],
-  "sections": [{"number": "1", "title": "string", "content": "string with \\n for newlines"}],
-  "signatories": [{"role": "string", "name": "string", "date": "string"}],
-  "crossReferences": ["array of policy names"]
+  "scope": "scope statement",
+  "legislationReferenced": ["list of laws/guidance cited"],
+  "sections": [
+    {
+      "number": "section number exactly as shown",
+      "title": "section title exactly as shown", 
+      "content": "COMPLETE VERBATIM CONTENT - every word, every bullet, every paragraph"
+    }
+  ],
+  "signatories": [{"role": "role", "name": "name", "date": "date"}],
+  "crossReferences": ["related policies mentioned"]
 }
 
-RULES:
-- Extract ALL sections exactly as numbered in original
-- Keep section content complete - use \\n for line breaks
+JSON RULES:
+- Use \\n for line breaks within content strings
 - Escape quotes as \\"
-- Return ONLY the JSON object, nothing else`;
+- Return ONLY the JSON object
 
-    const userPrompt = `Extract from this ${preset.name} policy:\n\n${fileText.substring(0, 60000)}`;
+REMEMBER: If the original section has 3 pages of content, your JSON must contain 3 pages of content. DO NOT SHORTEN ANYTHING.`;
+
+    const userPrompt = `COPY this ${preset.name} policy into JSON format. Include EVERY WORD of EVERY SECTION - do not summarize or shorten anything:
+
+${fileText.substring(0, 80000)}`;
 
     try {
       const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -447,7 +465,8 @@ RULES:
         },
         body: JSON.stringify({
           model: 'claude-sonnet-4-20250514',
-          max_tokens: 32000,
+          max_tokens: 64000,
+          temperature: 0,
           messages: [{ role: 'user', content: userPrompt }],
           system: systemPrompt
         })
@@ -459,6 +478,12 @@ RULES:
       }
 
       const data = await response.json();
+      
+      // Check for truncation - policy may be too long
+      if (data.stop_reason === 'max_tokens') {
+        throw new Error('Policy too long - the formatted output was truncated. The document may be too large to process in one pass.');
+      }
+      
       const text = data.content[0].text;
       
       // Try to extract JSON
@@ -543,6 +568,23 @@ RULES:
       // Validate minimum structure
       if (!parsed.policyTitle && !parsed.sections) {
         throw new Error('Response missing required fields. Please try again.');
+      }
+      
+      // Check if content might have been summarized (output much shorter than input)
+      const totalOutputChars = (parsed.sections || []).reduce((sum, s) => sum + (s.content?.length || 0), 0);
+      const inputChars = fileText.length;
+      const ratio = totalOutputChars / inputChars;
+      
+      if (ratio < 0.3 && inputChars > 5000) {
+        console.warn(`Content ratio: ${(ratio * 100).toFixed(1)}% - output may be summarized`);
+        const proceed = confirm(
+          `Warning: The formatted output appears shorter than the original (${(ratio * 100).toFixed(0)}% of original length).\n\n` +
+          `This may indicate content was summarized rather than preserved verbatim.\n\n` +
+          `Click OK to use this output anyway, or Cancel to try again.`
+        );
+        if (!proceed) {
+          throw new Error('Cancelled - please try again');
+        }
       }
       
       setRestructured(parsed);
