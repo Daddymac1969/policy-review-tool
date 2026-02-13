@@ -408,66 +408,33 @@ ${fileText.substring(0, 80000)}`;
     
     const preset = POLICY_PRESETS[policyType];
     
-    const systemPrompt = `You are a document formatter for TASIS The American School in England.
+    // Simpler prompt focused on extraction
+    const systemPrompt = `Extract policy metadata and sections. Return ONLY valid JSON, no other text.
 
-Your task is to FORMAT the provided policy document into the TASIS template structure. You are a FORMATTER, not an EDITOR.
-
-CRITICAL RULES:
-1. DO NOT reorganize, summarize, reduce, or make editorial decisions
-2. DO NOT change the wording or structure of content
-3. PRESERVE the exact section structure, numbering, and content from the original
-4. ONLY extract metadata and wrap content in the template format
-
-CRITICAL JSON FORMATTING RULES:
-- Return ONLY valid JSON - no markdown, no code blocks, no explanatory text
-- All strings must have special characters properly escaped:
-  - Newlines as \\n
-  - Quotes as \\"
-  - Backslashes as \\\\
-  - Tabs as \\t
-- Keep section content as single-line strings (use \\n for line breaks within content)
-- Do not include actual line breaks inside JSON string values
-
-OUTPUT FORMAT:
+JSON STRUCTURE:
 {
-  "policyTitle": "Extract exact title from document",
-  "shortCode": "Extract from document or use POL",
-  "version": "Extract from document",
-  "datePublished": "Extract from document",
-  "dateRatified": "Extract from document", 
-  "reviewDate": "Extract from document",
-  "responsibleArea": "Extract from document",
-  "infoSharingCategory": "Extract from document or PUBLIC",
-  "scope": "Extract from document",
-  "legislationReferenced": ["Extract any legislation cited in document"],
-  "sections": [
-    {
-      "number": "Use exact numbering from original document",
-      "title": "Use exact section title from original",
-      "content": "Use EXACT content from original section - do not modify"
-    }
-  ],
-  "signatories": [
-    {"role": "Extract from document", "name": "Extract from document", "date": "Extract from document"}
-  ],
-  "crossReferences": ["Extract any related policies mentioned"]
+  "policyTitle": "string",
+  "shortCode": "string like SCP, BEH, etc",
+  "version": "string like 1.0",
+  "datePublished": "string",
+  "dateRatified": "string",
+  "reviewDate": "string",
+  "responsibleArea": "string",
+  "infoSharingCategory": "PUBLIC or INTERNAL",
+  "scope": "string describing scope",
+  "legislationReferenced": ["array of strings"],
+  "sections": [{"number": "1", "title": "string", "content": "string with \\n for newlines"}],
+  "signatories": [{"role": "string", "name": "string", "date": "string"}],
+  "crossReferences": ["array of policy names"]
 }
 
-FORMATTING RULES:
-1. Extract metadata exactly as it appears in the document
-2. Preserve the EXACT section structure - same numbers, same titles, same order
-3. Preserve ALL content within each section VERBATIM - every word, every bullet point
-4. If the document has 22 sections, output 22 sections
-5. If content is lengthy, include ALL of it - do not truncate
-6. Escape special characters for valid JSON but preserve the actual text
-7. You are packaging existing content, not creating or editing it`;
+RULES:
+- Extract ALL sections exactly as numbered in original
+- Keep section content complete - use \\n for line breaks
+- Escape quotes as \\"
+- Return ONLY the JSON object, nothing else`;
 
-    const userPrompt = `POLICY TYPE: ${preset.name}
-
-FORMAT this policy document into the TASIS template structure. PRESERVE ALL CONTENT EXACTLY AS WRITTEN - do not reorganize, summarize, or edit.
-
-ORIGINAL DOCUMENT:
-${fileText.substring(0, 80000)}`;
+    const userPrompt = `Extract from this ${preset.name} policy:\n\n${fileText.substring(0, 60000)}`;
 
     try {
       const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -480,87 +447,108 @@ ${fileText.substring(0, 80000)}`;
         },
         body: JSON.stringify({
           model: 'claude-sonnet-4-20250514',
-          max_tokens: 16000,
+          max_tokens: 32000,
           messages: [{ role: 'user', content: userPrompt }],
           system: systemPrompt
         })
       });
 
       if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
+        const errText = await response.text();
+        throw new Error(`API error ${response.status}: ${errText.substring(0, 200)}`);
       }
 
       const data = await response.json();
       const text = data.content[0].text;
       
-      // Extract JSON from response
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        let jsonStr = jsonMatch[0];
+      // Try to extract JSON
+      let jsonStr = text;
+      
+      // Remove markdown code blocks if present
+      jsonStr = jsonStr.replace(/```json\s*/g, '').replace(/```\s*/g, '');
+      
+      // Find the JSON object
+      const startIdx = jsonStr.indexOf('{');
+      const endIdx = jsonStr.lastIndexOf('}');
+      
+      if (startIdx === -1 || endIdx === -1) {
+        throw new Error('No JSON object found in response');
+      }
+      
+      jsonStr = jsonStr.substring(startIdx, endIdx + 1);
+      
+      // Clean problematic characters inside strings
+      const cleanJSON = (str) => {
+        let inString = false;
+        let escaped = false;
+        let result = '';
         
-        // Clean JSON - fix common LLM output issues
-        const cleanJSON = (str) => {
-          // Replace literal newlines inside strings with \n escape
-          // This regex finds string values and escapes newlines within them
-          let inString = false;
-          let escaped = false;
-          let result = '';
+        for (let i = 0; i < str.length; i++) {
+          const char = str[i];
           
-          for (let i = 0; i < str.length; i++) {
-            const char = str[i];
-            
-            if (escaped) {
-              result += char;
-              escaped = false;
-              continue;
-            }
-            
-            if (char === '\\') {
-              escaped = true;
-              result += char;
-              continue;
-            }
-            
-            if (char === '"') {
-              inString = !inString;
-              result += char;
-              continue;
-            }
-            
-            if (inString) {
-              // Replace problematic characters inside strings
-              if (char === '\n') {
-                result += '\\n';
-              } else if (char === '\r') {
-                result += '\\r';
-              } else if (char === '\t') {
-                result += '\\t';
-              } else if (char.charCodeAt(0) < 32) {
-                // Skip other control characters
-                result += ' ';
-              } else {
-                result += char;
-              }
-            } else {
-              result += char;
-            }
+          if (escaped) {
+            result += char;
+            escaped = false;
+            continue;
           }
-          return result;
-        };
-        
-        jsonStr = cleanJSON(jsonStr);
+          
+          if (char === '\\') {
+            escaped = true;
+            result += char;
+            continue;
+          }
+          
+          if (char === '"') {
+            inString = !inString;
+            result += char;
+            continue;
+          }
+          
+          if (inString) {
+            if (char === '\n') result += '\\n';
+            else if (char === '\r') result += '';
+            else if (char === '\t') result += '\\t';
+            else if (char.charCodeAt(0) < 32) result += ' ';
+            else result += char;
+          } else {
+            result += char;
+          }
+        }
+        return result;
+      };
+      
+      jsonStr = cleanJSON(jsonStr);
+      
+      // Try to parse
+      let parsed;
+      try {
+        parsed = JSON.parse(jsonStr);
+      } catch (e1) {
+        // Try fixing common issues
+        jsonStr = jsonStr
+          .replace(/,\s*}/g, '}')  // trailing commas
+          .replace(/,\s*]/g, ']')  // trailing commas in arrays
+          .replace(/:\s*,/g, ': "",')  // empty values
+          .replace(/:\s*}/g, ': ""}');  // empty last values
         
         try {
-          setRestructured(JSON.parse(jsonStr));
-        } catch (parseError) {
-          console.error('JSON parse error:', parseError.message);
-          console.error('Raw JSON (first 500 chars):', jsonStr.substring(0, 500));
-          throw new Error('Could not parse AI response. Please try again or use a shorter document.');
+          parsed = JSON.parse(jsonStr);
+        } catch (e2) {
+          console.error('JSON parse failed:', e2.message);
+          console.error('First 1000 chars:', jsonStr.substring(0, 1000));
+          throw new Error('Could not parse response. The document may be too complex. Try a shorter document or contact support.');
         }
-      } else {
-        throw new Error('Could not find JSON in AI response');
       }
+      
+      // Validate minimum structure
+      if (!parsed.policyTitle && !parsed.sections) {
+        throw new Error('Response missing required fields. Please try again.');
+      }
+      
+      setRestructured(parsed);
+      
     } catch (e) {
+      console.error('Restructure error:', e);
       alert('Error formatting policy: ' + e.message);
     } finally {
       setRestructuring(false);
@@ -598,346 +586,289 @@ ${fileText.substring(0, 80000)}`;
     });
   };
 
-  // Generate formatted policy PDF - matching review report style
-  const generateRestructuredPDF = async () => {
+  // Generate formatted policy as HTML with professional print styles
+  const generateRestructuredHTML = () => {
     if (!restructured) return;
     
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const logoUrl = 'https://raw.githubusercontent.com/Daddymac1969/Orah-passes/main/New%20TE%20Logo.png';
+    const escapeHtml = (str) => (str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     
-    const pageWidth = 210;
-    const pageHeight = 297;
-    const margin = 20;
-    const contentWidth = pageWidth - (margin * 2);
-    let y = margin;
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${escapeHtml(restructured.policyTitle) || 'Policy Document'}</title>
+  <style>
+    /* === PRINT STYLES === */
+    @page {
+      size: A4;
+      margin: 15mm 20mm 20mm 20mm;
+    }
     
-    // Load logo
-    const logo = await loadLogoForPDF();
-    const logoData = logo?.data;
-    const logoAspect = logo?.aspectRatio || 1;
+    @media print {
+      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+      body { background: white !important; }
+      .no-print { display: none !important; }
+      .page { box-shadow: none !important; margin: 0 !important; padding: 0 !important; }
+      .section { page-break-inside: avoid; }
+      .page-break { page-break-before: always; }
+      .header { position: running(header); }
+      @page { @top-center { content: element(header); } }
+    }
     
-    // Cover page header (page 1 only) - centered logo, prominent title
-    const addCoverHeader = () => {
-      // Navy header bar - taller for cover
-      doc.setFillColor(...TASIS_NAVY);
-      doc.rect(0, 0, pageWidth, 50, 'F');
+    /* === SCREEN STYLES === */
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    
+    body {
+      font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, 'Helvetica Neue', sans-serif;
+      font-size: 10.5pt;
+      line-height: 1.6;
+      color: #1a1a1a;
+      background: #e5e7eb;
+    }
+    
+    .page {
+      background: white;
+      max-width: 210mm;
+      min-height: 297mm;
+      margin: 20px auto;
+      padding: 0;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+    }
+    
+    /* Header */
+    .header {
+      background: linear-gradient(135deg, #1E3A5F 0%, #2a4a6f 100%);
+      color: white;
+      padding: 18px 25px;
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      border-bottom: 4px solid #C8102E;
+    }
+    .header img { height: 55px; width: auto; }
+    .header-text h1 { font-size: 15pt; font-weight: 600; margin-bottom: 3px; letter-spacing: -0.3px; }
+    .header-text p { font-size: 9pt; opacity: 0.85; }
+    
+    /* Content area */
+    .content { padding: 25px 30px 30px; }
+    
+    /* Safeguarding box */
+    .safeguarding-box {
+      background: linear-gradient(to right, #f0f9ff, #f8fafc);
+      border-left: 4px solid #1E3A5F;
+      padding: 14px 18px;
+      margin-bottom: 22px;
+      font-style: italic;
+      color: #1E3A5F;
+      font-size: 9.5pt;
+      line-height: 1.5;
+    }
+    
+    .scope-text { color: #64748b; font-size: 9pt; margin-bottom: 22px; }
+    
+    /* Section titles */
+    .meta-title {
+      color: #1E3A5F;
+      font-size: 11pt;
+      font-weight: 700;
+      padding-bottom: 6px;
+      margin-bottom: 12px;
+      border-bottom: 2px solid #C8102E;
+      display: inline-block;
+    }
+    
+    /* Metadata grid */
+    .meta-section { margin-bottom: 22px; }
+    .meta-grid {
+      display: grid;
+      grid-template-columns: 130px 1fr;
+      gap: 6px 12px;
+      font-size: 9.5pt;
+    }
+    .meta-label { color: #1E3A5F; font-weight: 600; }
+    .meta-value { color: #374151; }
+    
+    /* Contents */
+    .contents { margin: 25px 0; }
+    .contents ul { list-style: none; padding-left: 8px; columns: 2; column-gap: 30px; }
+    .contents li { padding: 4px 0; font-size: 9.5pt; color: #374151; break-inside: avoid; }
+    .contents li::before { content: "•"; color: #C8102E; margin-right: 8px; }
+    
+    /* Policy sections */
+    .section { margin-bottom: 22px; page-break-inside: avoid; }
+    .section-header {
+      color: #1E3A5F;
+      font-size: 11pt;
+      font-weight: 700;
+      padding-bottom: 5px;
+      margin-bottom: 10px;
+      border-bottom: 2px solid #C8102E;
+    }
+    .section-content {
+      font-size: 10pt;
+      line-height: 1.65;
+      white-space: pre-wrap;
+      color: #1f2937;
+    }
+    
+    /* Footer */
+    .footer {
+      border-top: 1px solid #cbd5e1;
+      margin-top: 30px;
+      padding-top: 15px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      font-size: 8pt;
+      color: #64748b;
+    }
+    .footer-accent { width: 40px; height: 3px; background: #C8102E; margin-bottom: 6px; }
+    
+    /* Print button */
+    .print-btn {
+      position: fixed;
+      top: 25px;
+      right: 25px;
+      background: linear-gradient(135deg, #1E3A5F, #2a4a6f);
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 11pt;
+      font-weight: 600;
+      box-shadow: 0 4px 12px rgba(30,58,95,0.3);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .print-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(30,58,95,0.4); }
+    
+    /* Page break marker */
+    .content-start { margin-top: 20px; padding-top: 20px; border-top: 1px dashed #e5e7eb; }
+  </style>
+</head>
+<body>
+  <button class="print-btn no-print" onclick="window.print()">🖨️ Print / Save as PDF</button>
+  
+  <div class="page">
+    <!-- Header -->
+    <div class="header">
+      <img src="${logoUrl}" alt="TASIS England">
+      <div class="header-text">
+        <h1>${escapeHtml(restructured.policyTitle) || 'Policy Document'}</h1>
+        <p>${escapeHtml(restructured.shortCode) || 'POL'} v${escapeHtml(restructured.version) || '1.0'} &nbsp;•&nbsp; ${escapeHtml(restructured.datePublished) || ''}</p>
+      </div>
+    </div>
+    
+    <div class="content">
+      <!-- Safeguarding Statement -->
+      <div class="safeguarding-box">
+        TASIS England is committed to safeguarding and promoting the welfare of students and expects all faculty, staff and volunteers to share this commitment. It is our aim that all students fulfil their potential.
+      </div>
       
-      // Red accent line
-      doc.setFillColor(...TASIS_RED);
-      doc.rect(0, 50, pageWidth, 2, 'F');
+      <p class="scope-text">
+        This policy applies to the whole school including ${escapeHtml(restructured.scope) || 'Boarding and the Early Years'}.
+        The current version of any policy is the version held on the TASIS England website.
+      </p>
       
-      // Centered logo - maintain aspect ratio
-      if (logoData) {
-        const logoH = 22;
-        const logoW = logoH * logoAspect;
-        doc.addImage(logoData, 'PNG', pageWidth/2 - logoW/2, 5, logoW, logoH);
-      }
+      <!-- Document Information -->
+      <div class="meta-section">
+        <div class="meta-title">Document Information</div>
+        <div class="meta-grid">
+          <span class="meta-label">Document Reference</span>
+          <span class="meta-value">TASIS_${escapeHtml(restructured.shortCode) || 'POL'}_v${escapeHtml(restructured.version) || '1.0'}</span>
+          <span class="meta-label">Version</span>
+          <span class="meta-value">v${escapeHtml(restructured.version) || '1.0'}</span>
+          <span class="meta-label">Published</span>
+          <span class="meta-value">${escapeHtml(restructured.datePublished) || '—'}</span>
+          <span class="meta-label">Ratified</span>
+          <span class="meta-value">${escapeHtml(restructured.dateRatified) || '—'}</span>
+          <span class="meta-label">Review Date</span>
+          <span class="meta-value">${escapeHtml(restructured.reviewDate) || '—'}</span>
+          <span class="meta-label">Owner</span>
+          <span class="meta-value">${escapeHtml(restructured.responsibleArea) || '—'}</span>
+          <span class="meta-label">Classification</span>
+          <span class="meta-value">${escapeHtml(restructured.infoSharingCategory) || 'PUBLIC'}</span>
+        </div>
+      </div>
       
-      // Policy title below logo
-      doc.setTextColor(...WHITE);
-      doc.setFontSize(14);
-      doc.setFont('helvetica', 'bold');
-      const titleLines = doc.splitTextToSize(restructured.policyTitle || 'Policy Document', contentWidth - 20);
-      doc.text(titleLines, pageWidth / 2, 38, { align: 'center' });
+      <!-- Approved By -->
+      <div class="meta-section">
+        <div class="meta-title">Approved By</div>
+        <div class="meta-grid">
+          ${(restructured.signatories || [
+            { role: 'Head of School', name: 'Bryan Nixon', date: '' },
+            { role: 'Chair of Board', name: 'David King', date: '' }
+          ]).map(sig => `
+            <span class="meta-label">${escapeHtml(sig.role)}</span>
+            <span class="meta-value">${escapeHtml(sig.name) || '—'} ${sig.date ? '(' + escapeHtml(sig.date) + ')' : ''}</span>
+          `).join('')}
+        </div>
+      </div>
       
-      // Version/date on right
-      doc.setFontSize(8);
-      doc.setFont('helvetica', 'normal');
-      doc.text(`${restructured.shortCode || 'POL'} v${restructured.version || '1.0'}`, pageWidth - margin, 46, { align: 'right' });
-    };
+      <!-- Legislation -->
+      ${restructured.legislationReferenced?.length ? `
+      <div class="meta-section">
+        <div class="meta-title">Statutory Compliance</div>
+        <p style="font-size: 9.5pt; color: #374151;">${restructured.legislationReferenced.map(l => escapeHtml(l)).join('; ')}</p>
+      </div>
+      ` : ''}
+      
+      <!-- Contents -->
+      ${restructured.sections?.length ? `
+      <div class="contents">
+        <div class="meta-title">Contents</div>
+        <ul>
+          ${restructured.sections.map(s => `<li>${escapeHtml(s.number)}. ${escapeHtml(s.title)}</li>`).join('')}
+        </ul>
+      </div>
+      ` : ''}
+      
+      <!-- Policy Content -->
+      <div class="content-start">
+        ${(restructured.sections || []).map(section => `
+        <div class="section">
+          <div class="section-header">${escapeHtml(section.number)}. ${escapeHtml(section.title)}</div>
+          <div class="section-content">${escapeHtml(section.content || '').replace(/\\n/g, '\n')}</div>
+        </div>
+        `).join('')}
+      </div>
+      
+      <!-- Cross References -->
+      ${restructured.crossReferences?.length ? `
+      <div class="meta-section" style="margin-top: 25px;">
+        <div class="meta-title">Related Policies</div>
+        <p style="font-size: 9.5pt; color: #374151;">${restructured.crossReferences.map(r => escapeHtml(r)).join('; ')}</p>
+      </div>
+      ` : ''}
+      
+      <!-- Footer -->
+      <div class="footer">
+        <div>
+          <div class="footer-accent"></div>
+          <span>TASIS England is committed to safeguarding and promoting the welfare of students.</span>
+        </div>
+        <div style="text-align: right;">
+          <strong>${escapeHtml(restructured.shortCode) || 'POL'}_v${escapeHtml(restructured.version) || '1.0'}</strong>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>`;
 
-    // Running header (page 2+) - small logo, compact
-    const addHeader = () => {
-      // Navy header bar
-      doc.setFillColor(...TASIS_NAVY);
-      doc.rect(0, 0, pageWidth, 28, 'F');
-      
-      // Red accent line
-      doc.setFillColor(...TASIS_RED);
-      doc.rect(0, 28, pageWidth, 2, 'F');
-      
-      // Logo in header - maintain aspect ratio
-      if (logoData) {
-        const logoH = 20;
-        const logoW = logoH * logoAspect;
-        doc.addImage(logoData, 'PNG', margin, 4, logoW, logoH);
-      }
-      
-      // Header text - just title and version
-      const textStart = logoData ? margin + 25 : margin;
-      doc.setTextColor(...WHITE);
-      doc.setFontSize(11);
-      doc.setFont('helvetica', 'bold');
-      const shortTitle = (restructured.policyTitle || 'Policy Document').substring(0, 60);
-      doc.text(shortTitle, textStart, 12);
-      doc.setFontSize(8);
-      doc.setFont('helvetica', 'normal');
-      doc.text(`${restructured.shortCode || 'POL'} v${restructured.version || '1.0'}`, textStart, 20);
-      
-      // Date on right
-      doc.setFontSize(9);
-      doc.text(restructured.datePublished || '', pageWidth - margin, 16, { align: 'right' });
-    };
-    
-    const addFooter = (pageNum, totalPages) => {
-      // Footer line
-      doc.setDrawColor(...TASIS_NAVY);
-      doc.setLineWidth(0.3);
-      doc.line(margin, pageHeight - 15, pageWidth - margin, pageHeight - 15);
-      
-      // Red accent
-      doc.setDrawColor(...TASIS_RED);
-      doc.setLineWidth(0.8);
-      doc.line(margin, pageHeight - 14.5, margin + 25, pageHeight - 14.5);
-      
-      doc.setFontSize(7);
-      doc.setTextColor(...TASIS_GREY);
-      doc.text('TASIS England is committed to safeguarding and promoting the welfare of students...', margin, pageHeight - 10);
-      doc.text(`Page ${pageNum} of ${totalPages}`, pageWidth - margin, pageHeight - 10, { align: 'right' });
-      doc.text(`${restructured.shortCode || 'POL'}_v${restructured.version || '1.0'}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
-    };
-    
-    const addPage = () => {
-      doc.addPage();
-      addHeader();
-      y = 40;  // Running header is 30mm, start content below
-    };
-    
-    const checkPageBreak = (needed) => {
-      if (y + needed > pageHeight - 20) {
-        addPage();
-      }
-    };
-    
-    // Helper for wrapping text properly
-    const renderWrappedText = (text, x, startY, maxWidth, lineHeight = 4.5) => {
-      const lines = doc.splitTextToSize(text || '', maxWidth);
-      lines.forEach(line => {
-        checkPageBreak(lineHeight + 2);
-        doc.text(line, x, y);
-        y += lineHeight;
-      });
-    };
-
-    // ═══ PAGE 1: Cover/Metadata ═══
-    addCoverHeader();
-    y = 65;  // Start after cover header
-    
-    // Safeguarding statement box
-    doc.setFillColor(...TASIS_LIGHT);
-    doc.roundedRect(margin, y, contentWidth, 18, 2, 2, 'F');
-    doc.setDrawColor(...TASIS_NAVY);
-    doc.setLineWidth(0.3);
-    doc.roundedRect(margin, y, contentWidth, 18, 2, 2, 'S');
-    doc.setTextColor(...TASIS_NAVY);
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'italic');
-    const safeguardingStmt = 'TASIS England is committed to safeguarding and promoting the welfare of students and expects all faculty, staff and volunteers to share this commitment. It is our aim that all students fulfil their potential.';
-    const stmtLines = doc.splitTextToSize(safeguardingStmt, contentWidth - 8);
-    doc.text(stmtLines, margin + 4, y + 6);
-    y += 24;
-    
-    // Scope statement
-    doc.setTextColor(...TASIS_GREY);
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`This policy applies to the whole school including ${restructured.scope || 'Boarding and the Early Years'}.`, margin, y);
-    y += 10;
-    
-    // Metadata section header
-    doc.setTextColor(...TASIS_NAVY);
-    doc.setFontSize(11);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Document Information', margin, y);
-    doc.setDrawColor(...TASIS_RED);
-    doc.setLineWidth(0.8);
-    doc.line(margin, y + 2, margin + 45, y + 2);
-    y += 8;
-    
-    // Metadata table - compact style
-    const metaData = [
-      ['Document Reference', `TASIS_${restructured.shortCode || 'POL'}_v${restructured.version || '1.0'}`],
-      ['Version', `v${restructured.version || '1.0'}`],
-      ['Published', restructured.datePublished || ''],
-      ['Ratified', restructured.dateRatified || ''],
-      ['Review Date', restructured.reviewDate || ''],
-      ['Owner', restructured.responsibleArea || ''],
-      ['Classification', restructured.infoSharingCategory || 'PUBLIC']
-    ];
-    
-    doc.setFontSize(9);
-    metaData.forEach(row => {
-      doc.setTextColor(...TASIS_NAVY);
-      doc.setFont('helvetica', 'bold');
-      doc.text(row[0] + ':', margin, y);
-      doc.setTextColor(...BLACK);
-      doc.setFont('helvetica', 'normal');
-      doc.text(row[1], margin + 40, y);
-      y += 5;
-    });
-    
-    y += 8;
-    
-    // Signatories section
-    doc.setTextColor(...TASIS_NAVY);
-    doc.setFontSize(11);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Approved By', margin, y);
-    doc.setDrawColor(...TASIS_RED);
-    doc.setLineWidth(0.8);
-    doc.line(margin, y + 2, margin + 30, y + 2);
-    y += 8;
-    
-    const sigs = restructured.signatories || [
-      { role: 'Head of School', name: 'Bryan Nixon', date: '' },
-      { role: 'Chair of Board', name: 'David King', date: '' }
-    ];
-    
-    doc.setFontSize(9);
-    sigs.forEach(sig => {
-      doc.setTextColor(...TASIS_NAVY);
-      doc.setFont('helvetica', 'bold');
-      doc.text(sig.role + ':', margin, y);
-      doc.setTextColor(...BLACK);
-      doc.setFont('helvetica', 'normal');
-      doc.text(`${sig.name || ''} (${sig.date || ''})`, margin + 45, y);
-      y += 5;
-    });
-    
-    y += 8;
-    
-    // Legislation references
-    if (restructured.legislationReferenced?.length > 0) {
-      doc.setTextColor(...TASIS_NAVY);
-      doc.setFontSize(11);
-      doc.setFont('helvetica', 'bold');
-      doc.text('Statutory Compliance', margin, y);
-      doc.setDrawColor(...TASIS_RED);
-      doc.setLineWidth(0.8);
-      doc.line(margin, y + 2, margin + 42, y + 2);
-      y += 8;
-      
-      doc.setFontSize(9);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(...BLACK);
-      const legText = restructured.legislationReferenced.join('; ');
-      const legLines = doc.splitTextToSize(legText, contentWidth);
-      doc.text(legLines, margin, y);
-      y += legLines.length * 4 + 5;
-    }
-    
-    // Contents section
-    if (restructured.sections?.length > 0) {
-      y += 5;
-      doc.setTextColor(...TASIS_NAVY);
-      doc.setFontSize(11);
-      doc.setFont('helvetica', 'bold');
-      doc.text('Contents', margin, y);
-      doc.setDrawColor(...TASIS_RED);
-      doc.setLineWidth(0.8);
-      doc.line(margin, y + 2, margin + 22, y + 2);
-      y += 8;
-      
-      doc.setFontSize(9);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(...BLACK);
-      
-      restructured.sections.forEach(section => {
-        if (y > pageHeight - 25) {
-          addPage();
-        }
-        const tocEntry = `${section.number}. ${section.title}`;
-        const tocLines = doc.splitTextToSize(tocEntry, contentWidth - 6);
-        tocLines.forEach((line, i) => {
-          doc.text(line, margin + 3, y);
-          y += 4;
-        });
-        y += 1;
-      });
-    }
-    
-    // ═══ CONTENT PAGES ═══
-    addPage();
-    
-    (restructured.sections || []).forEach((section, idx) => {
-      checkPageBreak(20);
-      
-      // Section header
-      doc.setTextColor(...TASIS_NAVY);
-      doc.setFontSize(11);
-      doc.setFont('helvetica', 'bold');
-      
-      // Wrap long section titles
-      const sectionTitle = `${section.number}. ${section.title}`;
-      const titleLines = doc.splitTextToSize(sectionTitle, contentWidth);
-      titleLines.forEach((line, i) => {
-        doc.text(line, margin, y);
-        if (i === 0) {
-          doc.setDrawColor(...TASIS_RED);
-          doc.setLineWidth(0.8);
-          const lineWidth = Math.min(doc.getTextWidth(line), 60);
-          doc.line(margin, y + 2, margin + lineWidth, y + 2);
-        }
-        y += 5;
-      });
-      y += 3;
-      
-      // Section content - handle line breaks properly
-      doc.setTextColor(...BLACK);
-      doc.setFontSize(9);
-      doc.setFont('helvetica', 'normal');
-      
-      // Split content by actual newlines first, then wrap each paragraph
-      const content = (section.content || '').replace(/\\n/g, '\n');
-      const paragraphs = content.split('\n');
-      
-      paragraphs.forEach(para => {
-        if (para.trim() === '') {
-          y += 2; // Empty line spacing
-          return;
-        }
-        
-        // Wrap this paragraph
-        const lines = doc.splitTextToSize(para.trim(), contentWidth);
-        lines.forEach(line => {
-          checkPageBreak(5);
-          doc.text(line, margin, y);
-          y += 4;
-        });
-      });
-      
-      y += 6;
-    });
-    
-    // Cross-references
-    if (restructured.crossReferences?.length > 0) {
-      checkPageBreak(15);
-      doc.setTextColor(...TASIS_NAVY);
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'bold');
-      doc.text('Related Policies', margin, y);
-      doc.setDrawColor(...TASIS_RED);
-      doc.setLineWidth(0.8);
-      doc.line(margin, y + 2, margin + 35, y + 2);
-      y += 7;
-      
-      doc.setFontSize(9);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(...BLACK);
-      doc.text(restructured.crossReferences.join('; '), margin, y);
-      y += 10;
-    }
-    
-    // Add footers to all pages
-    const pageCount = doc.internal.getNumberOfPages();
-    for (let i = 1; i <= pageCount; i++) {
-      doc.setPage(i);
-      addFooter(i, pageCount);
-    }
-    
-    // Save
-    const filename = `${(restructured.policyTitle || 'Policy').replace(/[^a-zA-Z0-9 ]/g, '').replace(/\s+/g, '_')}_TASIS_v${restructured.version || '1.0'}.pdf`;
-    doc.save(filename);
+    // Download as HTML file
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const filename = (restructured.policyTitle || 'Policy').replace(/[^a-zA-Z0-9 ]/g, '').replace(/\s+/g, '_');
+    a.download = filename + '_TASIS_v' + (restructured.version || '1.0') + '.html';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   // Generate review report PDF
@@ -1403,13 +1334,13 @@ ${fileText.substring(0, 80000)}`;
         
         // Download button
         React.createElement('div', { className: 'btn-group' },
-          React.createElement('button', { className: 'btn btn-success', onClick: generateRestructuredPDF }, 
-            '📥 Download Formatted Policy (PDF)'
+          React.createElement('button', { className: 'btn btn-success', onClick: generateRestructuredHTML }, 
+            '📥 Download Formatted Policy (HTML)'
           )
         ),
         
         React.createElement('p', { style: { fontSize: '11px', color: '#94A3B8', marginTop: '12px' } },
-          'The PDF includes: cover page, metadata table, signatory block, numbered sections, and legislation references.'
+          'Opens in browser - use Print → Save as PDF if needed. Includes: cover page, metadata, signatory block, numbered sections.'
         )
       )
     ),
