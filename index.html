@@ -101,14 +101,13 @@ const POLICY_PRESETS = {
     name: "Safeguarding & Child Protection",
     requirements: `MANDATORY REQUIREMENTS:
 - Must reference KCSIE 2025 (not older versions)
-- Must reference Working Together 2023
+- Must reference Working Together 2023 (not 2025 - there is no 2025 version)
 - Must include DSL contact details (Jason Tait)
 - Must define types of abuse (physical, emotional, sexual, neglect)
 - Must include procedures for reporting concerns
 - Must reference local safeguarding partnership (Surrey)
 - Must address child-on-child abuse
 - Must include online safety provisions
-- Must reference RESPOND framework
 - Must include staff training requirements
 - Must have clear escalation procedures
 - Must address children with SEND
@@ -239,7 +238,6 @@ const TASIS_TEMPLATE_CHECKS = [
   { id: "review_date", label: "Review/update date specified", required: true },
   { id: "responsible", label: "Responsible area/person identified", required: true },
   { id: "legislation_refs", label: "Legislation references current", required: false },
-  { id: "respond_ref", label: "RESPOND framework referenced (if safeguarding-related)", required: false },
 ];
 
 // ═══════════════════════════════════════════════════════════════
@@ -330,10 +328,14 @@ TASIS TEMPLATE REQUIREMENTS:
 - Signatory block with Head of School (Bryan Nixon) and Chair of Board (David King)
 - Numbered sections throughout
 - Review/update date clearly specified
-- RESPOND framework reference for safeguarding-related policies
 
-RESPOND FRAMEWORK: Recognise → Engage → Support → Pause → Offer → Notify → Document
-ACT FOUNDATIONS: Active Intervention, Contextual Safeguarding, Trauma-Informed Practice
+CRITICAL LEGISLATION RULES:
+- KCSIE: Must reference 2025 version (current)
+- Working Together: Must reference 2023 version. THERE IS NO "WORKING TOGETHER 2025" - IT DOES NOT EXIST. 
+  If the policy says "Working Together 2025", this is an ERROR - it should be "Working Together 2023".
+  If the policy correctly says "Working Together 2023", this is CORRECT - do NOT suggest changing it.
+
+Template check IDs to use: safeguarding_stmt, scope_stmt, version_stmt, metadata, signatory, numbered_sections, review_date, responsible, legislation_refs
 
 Respond in JSON format:
 {
@@ -341,16 +343,13 @@ Respond in JSON format:
   "overallScore": 85,
   "templateChecks": [
     {"id": "safeguarding_stmt", "pass": true, "note": "Present on page 1"},
-    {"id": "scope_stmt", "pass": false, "note": "Missing - needs to be added"},
-    ...
+    {"id": "scope_stmt", "pass": false, "note": "Missing - needs to be added"}
   ],
   "contentIssues": [
-    {"type": "error", "issue": "Missing KCSIE 2025 reference", "location": "Section 3", "suggestion": "Add reference to KCSIE 2025 Part 1"},
-    {"type": "warning", "issue": "DSL contact details incomplete", "location": "Page 2", "suggestion": "Add email and phone number"},
-    {"type": "info", "issue": "Consider adding flowchart for reporting", "location": "Section 5", "suggestion": "Visual aid would improve clarity"}
+    {"type": "error", "issue": "Description", "location": "Section X", "suggestion": "How to fix"}
   ],
   "missingElements": ["List of elements that should be added"],
-  "outdatedReferences": ["Any legislation or guidance that needs updating"],
+  "outdatedReferences": ["Any legislation or guidance that needs updating - remember Working Together 2023 is CORRECT"],
   "strengthAreas": ["What the policy does well"],
   "priorityActions": ["Top 3-5 actions in order of importance"]
 }`;
@@ -451,8 +450,7 @@ OUTPUT FORMAT:
   "signatories": [
     {"role": "Extract from document", "name": "Extract from document", "date": "Extract from document"}
   ],
-  "crossReferences": ["Extract any related policies mentioned"],
-  "respondReference": true or false based on whether RESPOND is mentioned
+  "crossReferences": ["Extract any related policies mentioned"]
 }
 
 FORMATTING RULES:
@@ -577,7 +575,7 @@ ${fileText.substring(0, 80000)}`;
   const WHITE = [255, 255, 255];
   const BLACK = [0, 0, 0];
 
-  // Load logo for PDF
+  // Load logo for PDF - returns data and aspect ratio
   const loadLogoForPDF = () => {
     return new Promise((resolve) => {
       const img = new Image();
@@ -588,7 +586,12 @@ ${fileText.substring(0, 80000)}`;
         canvas.height = img.height;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0);
-        resolve(canvas.toDataURL('image/png'));
+        resolve({
+          data: canvas.toDataURL('image/png'),
+          width: img.width,
+          height: img.height,
+          aspectRatio: img.width / img.height
+        });
       };
       img.onerror = () => resolve(null);
       img.src = 'https://raw.githubusercontent.com/Daddymac1969/Orah-passes/main/New%20TE%20Logo.png';
@@ -609,7 +612,9 @@ ${fileText.substring(0, 80000)}`;
     let y = margin;
     
     // Load logo
-    const logoData = await loadLogoForPDF();
+    const logo = await loadLogoForPDF();
+    const logoData = logo?.data;
+    const logoAspect = logo?.aspectRatio || 1;
     
     // Cover page header (page 1 only) - centered logo, prominent title
     const addCoverHeader = () => {
@@ -621,9 +626,11 @@ ${fileText.substring(0, 80000)}`;
       doc.setFillColor(...TASIS_RED);
       doc.rect(0, 50, pageWidth, 2, 'F');
       
-      // Centered logo
+      // Centered logo - maintain aspect ratio
       if (logoData) {
-        doc.addImage(logoData, 'PNG', pageWidth/2 - 12, 5, 24, 24);
+        const logoH = 22;
+        const logoW = logoH * logoAspect;
+        doc.addImage(logoData, 'PNG', pageWidth/2 - logoW/2, 5, logoW, logoH);
       }
       
       // Policy title below logo
@@ -649,20 +656,23 @@ ${fileText.substring(0, 80000)}`;
       doc.setFillColor(...TASIS_RED);
       doc.rect(0, 28, pageWidth, 2, 'F');
       
-      // Logo in header
+      // Logo in header - maintain aspect ratio
       if (logoData) {
-        doc.addImage(logoData, 'PNG', margin, 4, 20, 20);
+        const logoH = 20;
+        const logoW = logoH * logoAspect;
+        doc.addImage(logoData, 'PNG', margin, 4, logoW, logoH);
       }
       
       // Header text - just title and version
+      const textStart = logoData ? margin + 25 : margin;
       doc.setTextColor(...WHITE);
       doc.setFontSize(11);
       doc.setFont('helvetica', 'bold');
       const shortTitle = (restructured.policyTitle || 'Policy Document').substring(0, 60);
-      doc.text(shortTitle, logoData ? margin + 25 : margin, 12);
+      doc.text(shortTitle, textStart, 12);
       doc.setFontSize(8);
       doc.setFont('helvetica', 'normal');
-      doc.text(`${restructured.shortCode || 'POL'} v${restructured.version || '1.0'}`, logoData ? margin + 25 : margin, 20);
+      doc.text(`${restructured.shortCode || 'POL'} v${restructured.version || '1.0'}`, textStart, 20);
       
       // Date on right
       doc.setFontSize(9);
@@ -918,23 +928,6 @@ ${fileText.substring(0, 80000)}`;
       y += 10;
     }
     
-    // RESPOND framework box
-    if (restructured.respondReference) {
-      checkPageBreak(20);
-      doc.setFillColor(209, 250, 229);
-      doc.roundedRect(margin, y, contentWidth, 16, 2, 2, 'F');
-      doc.setDrawColor(5, 150, 105);
-      doc.setLineWidth(0.5);
-      doc.roundedRect(margin, y, contentWidth, 16, 2, 2, 'S');
-      doc.setTextColor(6, 95, 70);
-      doc.setFontSize(9);
-      doc.setFont('helvetica', 'bold');
-      doc.text('RESPOND Framework', margin + 4, y + 5);
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8);
-      doc.text('Recognise → Engage → Support → Pause → Offer → Notify → Document', margin + 4, y + 11);
-    }
-    
     // Add footers to all pages
     const pageCount = doc.internal.getNumberOfPages();
     for (let i = 1; i <= pageCount; i++) {
@@ -963,7 +956,9 @@ ${fileText.substring(0, 80000)}`;
     let y = margin;
 
     // Load logo
-    const logoData = await loadLogoForPDF();
+    const logo = await loadLogoForPDF();
+    const logoData = logo?.data;
+    const logoAspect = logo?.aspectRatio || 1;
     
     // Helper to add header
     const addReviewHeader = () => {
@@ -973,13 +968,16 @@ ${fileText.substring(0, 80000)}`;
       doc.rect(0, 28, pageWidth, 2, 'F');
       
       if (logoData) {
-        doc.addImage(logoData, 'PNG', margin, 4, 20, 20);
+        const logoH = 20;
+        const logoW = logoH * logoAspect;
+        doc.addImage(logoData, 'PNG', margin, 4, logoW, logoH);
       }
       
+      const textStart = logoData ? margin + 25 : margin;
       doc.setTextColor(...WHITE);
       doc.setFontSize(14);
       doc.setFont('helvetica', 'bold');
-      doc.text('Policy Review Report', logoData ? margin + 25 : margin, 15);
+      doc.text('Policy Review Report', textStart, 15);
       doc.setFontSize(9);
       doc.setFont('helvetica', 'normal');
       doc.text(new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }), pageWidth - margin, 15, { align: 'right' });
@@ -1411,14 +1409,14 @@ ${fileText.substring(0, 80000)}`;
         ),
         
         React.createElement('p', { style: { fontSize: '11px', color: '#94A3B8', marginTop: '12px' } },
-          'The PDF includes: cover page, metadata table, signatory block, numbered sections, legislation references, and RESPOND framework box (if applicable).'
+          'The PDF includes: cover page, metadata table, signatory block, numbered sections, and legislation references.'
         )
       )
     ),
 
     // Footer
     React.createElement('div', { style: { textAlign: 'center', padding: '20px', fontSize: '11px', color: '#94A3B8' } },
-      '© 2026 TASIS England • Policy Review Tool • RESPOND Safeguarding'
+      '© 2026 TASIS England • Policy Review Tool'
     )
   );
 }
