@@ -533,53 +533,85 @@ ${fileText.substring(0, 10000)}`;
 
   // JavaScript section parser - preserves ALL content
   const parseSections = (text) => {
-    const sections = [];
+    // First, let's see what we're working with
+    console.log('Raw text sample (first 500 chars):', text.substring(0, 500));
+    console.log('Line breaks found:', (text.match(/\n/g) || []).length);
     
-    // Multiple patterns to catch different numbering styles
+    // If text has very few line breaks, PDF extraction may have mangled it
+    const lineBreaks = (text.match(/\n/g) || []).length;
+    const textLength = text.length;
+    
+    // Try to detect sections with multiple patterns
+    // Don't require ^ start of line - look for patterns after whitespace/newlines
     const patterns = [
-      /^(\d+(?:\.\d+)*)[.\s:)\]]+\s*([A-Z][^\n]{0,120})/gm,  // 1. Title or 1 Title or 1) Title
-      /^(Section\s+\d+)[.\s:]+\s*([A-Z][^\n]{0,120})/gim,     // Section 1: Title
-      /^([A-Z])[.\s:)\]]+\s*([A-Z][^\n]{0,120})/gm,           // A. Title
+      /(?:^|\n)\s*(\d+(?:\.\d+)?)\s*[.\s:)\-]+\s*([A-Z][A-Za-z\s,&\-]{2,80})(?=\s*\n|\s{2,})/g,
+      /(?:^|\n)\s*(Section\s+\d+)[.\s:\-]+\s*([A-Z][A-Za-z\s,&\-]{2,80})/gi,
     ];
     
     let allMatches = [];
     
     for (const pattern of patterns) {
-      const matches = [...text.matchAll(pattern)];
-      for (const match of matches) {
+      pattern.lastIndex = 0; // Reset regex
+      let match;
+      while ((match = pattern.exec(text)) !== null) {
+        const num = match[1].replace(/^Section\s+/i, '').trim();
+        const title = match[2].trim();
+        
+        // Skip if title is too short or looks like content
+        if (title.length < 3) continue;
+        if (/^\d/.test(title)) continue; // Title shouldn't start with number
+        
         allMatches.push({
-          number: match[1].replace(/^Section\s+/i, ''),
-          title: match[2].trim(),
+          number: num,
+          title: title,
           index: match.index,
           fullMatch: match[0]
         });
       }
     }
     
-    // Sort by position in document
-    allMatches.sort((a, b) => a.index - b.index);
+    // Remove duplicates and sort
+    allMatches = allMatches
+      .filter((m, i, arr) => !arr.slice(0, i).some(prev => Math.abs(prev.index - m.index) < 10))
+      .sort((a, b) => a.index - b.index);
     
-    // Remove duplicates (same position)
-    allMatches = allMatches.filter((m, i, arr) => 
-      i === 0 || m.index !== arr[i-1].index
-    );
+    console.log('Sections detected:', allMatches.length, allMatches.map(m => m.number + '. ' + m.title));
     
-    if (allMatches.length === 0) {
-      // No sections found - return entire document
+    // If no sections found, split by paragraphs instead
+    if (allMatches.length < 2) {
+      console.log('Few sections found - preserving as single formatted block');
+      
+      // Try to add line breaks at sensible points if text is one blob
+      let formattedText = text;
+      
+      if (lineBreaks < textLength / 500) {
+        // Very few line breaks - try to add some
+        formattedText = text
+          // Add breaks before numbered items
+          .replace(/(\d+\.\d*\s+[A-Z])/g, '\n\n$1')
+          // Add breaks before "Section" 
+          .replace(/(Section\s+\d)/gi, '\n\n$1')
+          // Add breaks after periods followed by capital letters (sentence boundaries)
+          .replace(/\.\s+([A-Z])/g, '.\n\n$1')
+          // Clean up multiple line breaks
+          .replace(/\n{3,}/g, '\n\n');
+      }
+      
       return [{
         number: '1',
         title: 'Policy Content',
-        content: text.trim()
+        content: formattedText.trim()
       }];
     }
     
     // Extract content between headers
+    const sections = [];
     for (let i = 0; i < allMatches.length; i++) {
       const match = allMatches[i];
       const startPos = match.index + match.fullMatch.length;
       const endPos = (i < allMatches.length - 1) ? allMatches[i + 1].index : text.length;
       
-      const content = text.substring(startPos, endPos).trim();
+      let content = text.substring(startPos, endPos).trim();
       
       sections.push({
         number: match.number,
@@ -589,6 +621,42 @@ ${fileText.substring(0, 10000)}`;
     }
     
     return sections;
+  };
+
+  // Quick format - no AI, just wrap in template
+  const quickFormat = () => {
+    if (!fileText) return;
+    
+    // Prompt user for basic metadata
+    const title = prompt('Policy title:', file?.name?.replace(/\.[^.]+$/, '') || 'Policy Document');
+    if (!title) return;
+    
+    const result = {
+      policyTitle: title,
+      shortCode: 'POL',
+      version: '1.0',
+      datePublished: new Date().toLocaleDateString('en-GB'),
+      dateRatified: '',
+      reviewDate: '',
+      responsibleArea: '',
+      infoSharingCategory: 'PUBLIC',
+      scope: 'the whole school including Boarding and the Early Years',
+      legislationReferenced: [],
+      signatories: [
+        { role: 'Head of School', name: 'Bryan Nixon', date: '' },
+        { role: 'Chair of Board', name: 'David King', date: '' }
+      ],
+      crossReferences: [],
+      sections: [{
+        number: '1',
+        title: 'Policy Content',
+        content: fileText
+      }],
+      originalLength: fileText.length,
+      parsedLength: fileText.length
+    };
+    
+    setFormatResults(result);
   };
 
   // Generate HTML output
@@ -627,7 +695,7 @@ ${fileText.substring(0, 10000)}`;
     .contents li::before { content: "•"; color: #C8102E; margin-right: 8px; }
     .section { margin-bottom: 22px; page-break-inside: avoid; }
     .section-header { color: #1E3A5F; font-size: 11pt; font-weight: 700; padding-bottom: 5px; margin-bottom: 10px; border-bottom: 2px solid #C8102E; }
-    .section-content { font-size: 10pt; line-height: 1.65; white-space: pre-wrap; color: #1f2937; }
+    .section-content { font-size: 10pt; line-height: 1.65; color: #1f2937; word-wrap: break-word; }
     .footer { border-top: 1px solid #cbd5e1; margin-top: 30px; padding-top: 15px; display: flex; justify-content: space-between; font-size: 8pt; color: #64748b; }
     .footer-accent { width: 40px; height: 3px; background: #C8102E; margin-bottom: 6px; }
     .print-btn { position: fixed; top: 25px; right: 25px; background: linear-gradient(135deg, #1E3A5F, #2a4a6f); color: white; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; font-size: 11pt; font-weight: 600; box-shadow: 0 4px 12px rgba(30,58,95,0.3); }
@@ -688,7 +756,7 @@ ${fileText.substring(0, 10000)}`;
       ${r.sections.map(s => `
       <div class="section">
         <div class="section-header">${escapeHtml(s.number)}. ${escapeHtml(s.title)}</div>
-        <div class="section-content">${escapeHtml(s.content)}</div>
+        <div class="section-content">${escapeHtml(s.content).replace(/\n/g, '<br>\n')}</div>
       </div>`).join('')}
       
       ${r.crossReferences?.length ? `
@@ -897,12 +965,45 @@ ${fileText.substring(0, 10000)}`;
               React.createElement('strong', null, 'Content is preserved exactly as written'),
               ' — only the layout changes.'
             ),
+            
+            // Raw text preview
+            fileText && React.createElement('div', { style: { marginBottom: '15px' } },
+              React.createElement('details', null,
+                React.createElement('summary', { style: { cursor: 'pointer', fontSize: '12px', color: '#64748B' } }, 
+                  '👁️ Preview extracted text (', (fileText.match(/\n/g) || []).length, ' line breaks detected)'
+                ),
+                React.createElement('pre', { 
+                  style: { 
+                    background: '#f8fafc', 
+                    padding: '10px', 
+                    fontSize: '10px', 
+                    maxHeight: '200px', 
+                    overflow: 'auto', 
+                    whiteSpace: 'pre-wrap',
+                    wordBreak: 'break-word',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '6px',
+                    marginTop: '8px'
+                  } 
+                }, fileText.substring(0, 3000) + (fileText.length > 3000 ? '\n\n... [truncated]' : ''))
+              )
+            ),
+            
             React.createElement('div', { className: 'btn-group' },
               React.createElement('button', {
                 className: 'btn btn-primary',
                 disabled: !file || !apiKey || loading,
                 onClick: runFormat
-              }, loading ? React.createElement('span', { className: 'spinner' }) : '⚙️', loading ? ' Processing...' : ' Extract & Format')
+              }, loading ? React.createElement('span', { className: 'spinner' }) : '⚙️', loading ? ' Processing...' : ' Extract Metadata & Format'),
+              React.createElement('button', {
+                className: 'btn',
+                style: { background: '#64748B', color: 'white' },
+                disabled: !file || loading,
+                onClick: () => quickFormat()
+              }, '⚡ Quick Format (No AI)')
+            ),
+            React.createElement('p', { style: { fontSize: '11px', color: '#94A3B8', marginTop: '8px' } },
+              'Quick Format skips metadata extraction and just wraps your content in the TASIS template.'
             )
           ),
           
