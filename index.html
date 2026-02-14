@@ -353,63 +353,171 @@ function PolicyTools() {
     }
   };
 
-  // Smart heading detection - converts likely headings from <p><strong> to <h2>
+  // Smart heading and list detection - post-processes mammoth HTML
   const detectHeadings = (html) => {
-    // Common policy section title patterns
-    const sectionPatterns = [
-      // Numbered sections: "1. Introduction", "2.1 Policy Aims"
-      /^(\d+\.?\d*\.?\s+[A-Z][^.!?]*?)$/,
-      // Named sections: "Introduction", "Policy Aims", "Definitions"
-      /^(Introduction|Definitions|Policy Aims|Equalities Statement|Supporting Children|Professional Expectations|Safeguarding Statement|Key Personnel|Contents|Appendix \d+|Additional Resources|Links with other).*$/i,
-      // All caps short titles
-      /^([A-Z][A-Z\s]{3,40})$/,
-      // Title case short phrases (likely headings)
-      /^([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,5})$/
-    ];
-    
-    // Process each paragraph
+    // Create a temporary container
     const tempDiv = document.createElement('div');
     tempDiv.innerHTML = html;
     
+    // === STEP 1: DETECT AND CONVERT HEADINGS ===
     const paragraphs = tempDiv.querySelectorAll('p');
     
     paragraphs.forEach(p => {
       const text = p.textContent.trim();
       const innerHtml = p.innerHTML.trim();
       
-      // Skip empty or very long paragraphs (not headings)
-      if (!text || text.length > 100) return;
+      // Skip empty or very long paragraphs
+      if (!text || text.length > 120) return;
       
-      // Check if it's wrapped in <strong> and matches heading patterns
-      const isStrong = innerHtml.startsWith('<strong>') && innerHtml.endsWith('</strong>');
-      const strongText = isStrong ? text : null;
+      // Check if it's wrapped in <strong>
+      const isAllStrong = innerHtml.startsWith('<strong>') && innerHtml.endsWith('</strong>');
+      const hasStrong = p.querySelector('strong') !== null;
       
-      // Check if matches section patterns
-      let isHeading = false;
-      let headingLevel = 'h2';
+      let headingLevel = null;
       
-      for (const pattern of sectionPatterns) {
-        if (pattern.test(text)) {
-          isHeading = true;
-          // Numbered sections with decimals are sub-headings
-          if (/^\d+\.\d+/.test(text)) {
-            headingLevel = 'h3';
-          }
-          break;
+      // Pattern 1: Numbered main sections "1. Introduction" or "1 Introduction"
+      if (/^\d+\.?\s+[A-Z]/.test(text) && text.length < 80 && !text.includes(',')) {
+        headingLevel = 'h2';
+      }
+      // Pattern 2: Numbered subsections "1.1 Policy Aims" or "1.1. Policy Aims"
+      else if (/^\d+\.\d+\.?\s+[A-Z]/.test(text) && text.length < 80) {
+        headingLevel = 'h3';
+      }
+      // Pattern 3: Common section names (case-insensitive)
+      else if (/^(Introduction|Definitions|Policy Aims|Equalities Statement|Supporting Children|Professional Expectations|Safeguarding Statement|Key Personnel|Contents|Appendix \d+|Additional Resources|Whistleblowing|Physical Intervention|Attendance|Behaviour|Online Safety|Mental Health|Prevent|FGM|Reporting|References|Glossary|Version Control|Document Control|Review Date|Scope|Purpose|Responsibilities|Training|Monitoring|Complaints|Appeals|Contact|Emergency|Procedures|Guidelines|Standards|Requirements|Compliance|Legislation|Statutory|Governance|Leadership|Management|Assessment|Evaluation|Support|Intervention|Safeguarding|Protection|Welfare|Safety|Health|Wellbeing|Equality|Diversity|Inclusion|Communication|Information|Data|Records|Confidentiality|Disclosure|Referral|Escalation|Investigation|Outcome|Review|Audit|Quality|Improvement|Development|Implementation|Delivery|Resources|Budget|Finance|Staffing|Recruitment|Induction|Supervision|Appraisal|Performance|Discipline|Grievance|Absence|Leave|Facilities|Equipment|Premises|Security|Access|Visitors|Contractors|Volunteers|Students|Parents|Families|Community|Partners|Agencies|Services|Provision|Curriculum|Teaching|Learning|Assessment|Achievement|Progress|Attainment|Standards|Expectations|Behaviour|Conduct|Uniform|Attendance|Punctuality|Homework|Examinations|Reports|Rewards|Sanctions|Exclusion|Suspension|Expulsion|Reinstatement|Appeals|Complaints|Concerns|Feedback|Suggestions|Comments|Questions|Queries|Requests|Applications|Admissions|Enrolment|Registration|Induction|Transition|Transfer|Withdrawal|Leaving|Alumni|Destinations|Careers|Guidance|Advice|Support|Intervention|Prevention|Early Help|Targeted|Universal|Specialist|Intensive|Crisis|Emergency|Urgent|Immediate|Priority|Routine|Standard|Normal|Regular|Periodic|Annual|Termly|Weekly|Daily|Ongoing|Continuous|Permanent|Temporary|Fixed|Flexible|Variable|Optional|Mandatory|Compulsory|Required|Recommended|Suggested|Preferred|Alternative|Additional|Supplementary|Complementary|Integrated|Coordinated|Collaborative|Partnership|Multi-Agency|Joint|Shared|Common|Consistent|Coherent|Comprehensive|Holistic|Inclusive|Accessible|Equitable|Fair|Just|Proportionate|Reasonable|Appropriate|Suitable|Relevant|Effective|Efficient|Economic|Sustainable|Viable|Feasible|Practical|Realistic|Achievable|Measurable|Specific|Clear|Transparent|Accountable|Responsible|Professional|Ethical|Legal|Lawful|Compliant|Conforming|Adhering|Following|Observing|Respecting|Upholding|Promoting|Supporting|Enabling|Empowering|Encouraging|Motivating|Inspiring|Leading|Managing|Directing|Supervising|Monitoring|Evaluating|Reviewing|Improving|Developing|Enhancing|Strengthening|Building|Creating|Establishing|Implementing|Delivering|Providing|Offering|Giving|Sharing|Communicating|Informing|Advising|Guiding|Counselling|Coaching|Mentoring|Training|Teaching|Educating|Learning|Growing|Changing|Adapting|Responding|Reacting|Acting|Doing|Making|Taking|Giving|Receiving|Accepting|Rejecting|Refusing|Declining|Agreeing|Disagreeing|Supporting|Opposing|Challenging|Questioning|Querying|Clarifying|Explaining|Describing|Defining|Identifying|Recognising|Acknowledging|Appreciating|Valuing|Respecting|Honouring|Celebrating|Rewarding|Praising|Encouraging|Motivating|Inspiring|Empowering|Enabling|Supporting|Helping|Assisting|Aiding|Facilitating|Coordinating|Organising|Planning|Preparing|Arranging|Scheduling|Timetabling|Programming|Booking|Reserving|Allocating|Distributing|Sharing|Dividing|Splitting|Separating|Combining|Joining|Merging|Integrating|Coordinating|Collaborating|Cooperating|Working|Operating|Functioning|Performing|Achieving|Succeeding|Accomplishing|Completing|Finishing|Ending|Concluding|Summarising|Reviewing|Evaluating|Assessing|Measuring|Monitoring|Tracking|Recording|Documenting|Reporting|Communicating|Informing|Notifying|Alerting|Warning|Advising|Recommending|Suggesting|Proposing|Requesting|Asking|Enquiring|Investigating|Researching|Analysing|Examining|Inspecting|Checking|Verifying|Confirming|Validating|Approving|Authorising|Sanctioning|Permitting|Allowing|Enabling|Empowering|Supporting|Encouraging|Promoting|Advocating|Championing|Leading|Driving|Pushing|Pulling|Attracting|Drawing|Engaging|Involving|Including|Embracing|Welcoming|Accepting|Receiving|Taking|Giving|Sharing|Distributing|Allocating|Assigning|Delegating|Entrusting|Empowering|Enabling|Supporting|Helping|Assisting|Aiding|Facilitating|Coordinating|Organising|Managing|Leading|Directing|Supervising|Overseeing|Monitoring|Evaluating|Reviewing|Improving|Developing|Enhancing|Strengthening|Building|Creating|Establishing|Implementing|Delivering|Providing)[\s:]*$/i.test(text)) {
+        headingLevel = 'h2';
+      }
+      // Pattern 4: Bold short text that looks like a heading
+      else if (isAllStrong && text.length < 60 && !/[,;]/.test(text) && !/\.$/.test(text)) {
+        // Check if it's title case or all caps
+        const words = text.split(/\s+/);
+        const isTitleCase = words.every(w => /^[A-Z]/.test(w) || w.length < 3);
+        const isAllCaps = /^[A-Z\s]+$/.test(text) && text.length > 3;
+        
+        if (isTitleCase || isAllCaps) {
+          headingLevel = 'h3';
         }
       }
-      
-      // Also treat bold-only short text as potential heading
-      if (!isHeading && isStrong && text.length < 60 && !text.includes('.') && !text.includes(',')) {
-        isHeading = true;
-        headingLevel = 'h3';
+      // Pattern 5: Short bold text ending with colon (subheading)
+      else if (hasStrong && text.endsWith(':') && text.length < 50) {
+        headingLevel = 'h4';
       }
       
       // Convert to heading if detected
-      if (isHeading) {
+      if (headingLevel) {
         const heading = document.createElement(headingLevel);
         heading.textContent = text;
         p.parentNode.replaceChild(heading, p);
+      }
+    });
+    
+    // === STEP 2: DETECT AND CONVERT LISTS ===
+    // Find consecutive paragraphs that look like list items
+    const allPs = Array.from(tempDiv.querySelectorAll('p'));
+    let i = 0;
+    
+    while (i < allPs.length) {
+      const p = allPs[i];
+      const text = p.textContent.trim();
+      
+      // Check for bullet-like patterns
+      const bulletMatch = text.match(/^[•●○◦▪▫–—-]\s+(.+)$/);
+      const numberMatch = text.match(/^(\d+)[.)]\s+(.+)$/);
+      const letterMatch = text.match(/^([a-z])[.)]\s+(.+)$/i);
+      const romanMatch = text.match(/^([ivxIVX]+)[.)]\s+(.+)$/);
+      
+      if (bulletMatch || numberMatch || letterMatch || romanMatch) {
+        // Start collecting list items
+        const listItems = [];
+        const listType = numberMatch || letterMatch || romanMatch ? 'ol' : 'ul';
+        let j = i;
+        
+        while (j < allPs.length) {
+          const currentP = allPs[j];
+          const currentText = currentP.textContent.trim();
+          
+          let itemContent = null;
+          
+          if (listType === 'ul') {
+            const match = currentText.match(/^[•●○◦▪▫–—-]\s+(.+)$/);
+            if (match) itemContent = match[1];
+          } else {
+            const match = currentText.match(/^(?:\d+|[a-z]|[ivxIVX]+)[.)]\s+(.+)$/i);
+            if (match) itemContent = match[1];
+          }
+          
+          if (itemContent) {
+            listItems.push({ element: currentP, content: itemContent });
+            j++;
+          } else {
+            break;
+          }
+        }
+        
+        // Convert to list if we found 2+ items
+        if (listItems.length >= 2) {
+          const list = document.createElement(listType);
+          listItems.forEach(item => {
+            const li = document.createElement('li');
+            li.innerHTML = item.content;
+            list.appendChild(li);
+          });
+          
+          // Replace first paragraph with the list
+          listItems[0].element.parentNode.replaceChild(list, listItems[0].element);
+          
+          // Remove remaining paragraphs that became list items
+          for (let k = 1; k < listItems.length; k++) {
+            if (listItems[k].element.parentNode) {
+              listItems[k].element.parentNode.removeChild(listItems[k].element);
+            }
+          }
+          
+          i = i + 1; // Move past the list
+          continue;
+        }
+      }
+      
+      i++;
+    }
+    
+    // === STEP 3: DETECT INDENTED/DEPENDENT CONTENT ===
+    // Look for patterns like "This includes:" followed by list-like paragraphs
+    const headings = tempDiv.querySelectorAll('h2, h3, h4');
+    headings.forEach(h => {
+      const text = h.textContent;
+      if (text.endsWith(':')) {
+        // Look at next siblings - might be a list
+        let nextEl = h.nextElementSibling;
+        const potentialItems = [];
+        
+        while (nextEl && nextEl.tagName === 'P') {
+          const pText = nextEl.textContent.trim();
+          // Short paragraphs after a colon-ending heading are likely list items
+          if (pText.length < 150 && !pText.includes('.') || pText.split('.').length <= 2) {
+            potentialItems.push(nextEl);
+            nextEl = nextEl.nextElementSibling;
+          } else {
+            break;
+          }
+        }
+        
+        if (potentialItems.length >= 2 && potentialItems.length <= 10) {
+          const ul = document.createElement('ul');
+          potentialItems.forEach(p => {
+            const li = document.createElement('li');
+            li.innerHTML = p.innerHTML;
+            ul.appendChild(li);
+          });
+          
+          // Insert list after heading
+          h.parentNode.insertBefore(ul, potentialItems[0]);
+          
+          // Remove converted paragraphs
+          potentialItems.forEach(p => {
+            if (p.parentNode) p.parentNode.removeChild(p);
+          });
+        }
       }
     });
     
@@ -715,15 +823,20 @@ ${fileText.substring(0, 15000)}`;
     .policy-body h1 { color: #1E3A5F; font-size: 14pt; font-weight: 700; margin: 25px 0 12px 0; padding-bottom: 6px; border-bottom: 2px solid #C8102E; }
     .policy-body h2 { color: #1E3A5F; font-size: 12pt; font-weight: 700; margin: 20px 0 10px 0; padding-bottom: 4px; border-bottom: 1px solid #C8102E; }
     .policy-body h3 { color: #1E3A5F; font-size: 11pt; font-weight: 600; margin: 16px 0 8px 0; }
-    .policy-body h4, .policy-body h5, .policy-body h6 { color: #1E3A5F; font-size: 10.5pt; font-weight: 600; margin: 14px 0 6px 0; }
+    .policy-body h4 { color: #1E3A5F; font-size: 10.5pt; font-weight: 600; margin: 14px 0 6px 0; font-style: italic; }
+    .policy-body h5, .policy-body h6 { color: #1E3A5F; font-size: 10pt; font-weight: 600; margin: 12px 0 5px 0; }
     .policy-body p { margin-bottom: 10px; }
-    .policy-body ul, .policy-body ol { margin: 10px 0 10px 25px; }
-    .policy-body li { margin-bottom: 5px; }
+    .policy-body ul, .policy-body ol { margin: 10px 0 15px 20px; padding-left: 10px; }
+    .policy-body ul { list-style-type: disc; }
+    .policy-body ol { list-style-type: decimal; }
+    .policy-body li { margin-bottom: 6px; padding-left: 5px; }
+    .policy-body ul ul, .policy-body ol ol, .policy-body ul ol, .policy-body ol ul { margin: 5px 0 5px 15px; }
     .policy-body table { width: 100%; border-collapse: collapse; margin: 15px 0; font-size: 9.5pt; }
     .policy-body table th, .policy-body table td { padding: 8px 10px; border: 1px solid #e2e8f0; text-align: left; }
     .policy-body table th { background: #f8fafc; color: #1E3A5F; font-weight: 600; }
     .policy-body strong { color: #1E3A5F; }
-    .policy-body a { color: #2563eb; }
+    .policy-body a { color: #2563eb; text-decoration: underline; }
+    .policy-body a:hover { color: #1d4ed8; }
     
     .footer { border-top: 1px solid #cbd5e1; margin-top: 30px; padding-top: 15px; display: flex; justify-content: space-between; font-size: 8pt; color: #64748b; }
     .footer-accent { width: 40px; height: 3px; background: #C8102E; margin-bottom: 6px; }
