@@ -269,6 +269,7 @@ function PolicyTools() {
   const [showSettings, setShowSettings] = useState(false);
   const [file, setFile] = useState(null);
   const [fileText, setFileText] = useState('');
+  const [fileHtml, setFileHtml] = useState(null); // HTML from mammoth for docx
   const [policyType, setPolicyType] = useState('safeguarding');
   const [loading, setLoading] = useState(false);
   
@@ -283,7 +284,7 @@ function PolicyTools() {
     if (apiKey) localStorage.setItem('tasis_api_key', apiKey);
   }, [apiKey]);
 
-  // File reading
+  // File reading - use mammoth HTML for docx to preserve structure
   const readFile = async (f) => {
     setFile(f);
     setReviewResults(null);
@@ -294,10 +295,19 @@ function PolicyTools() {
     try {
       if (ext === 'txt') {
         setFileText(await f.text());
+        setFileHtml(null);
       } else if (ext === 'docx') {
         const arrayBuffer = await f.arrayBuffer();
-        const result = await mammoth.extractRawText({ arrayBuffer });
-        setFileText(result.value);
+        // Get both raw text (for AI review) and HTML (for formatting)
+        const textResult = await mammoth.extractRawText({ arrayBuffer });
+        const htmlResult = await mammoth.convertToHtml({ arrayBuffer });
+        
+        // Post-process HTML to detect headings from patterns
+        let processedHtml = detectHeadings(htmlResult.value);
+        
+        setFileText(textResult.value);
+        setFileHtml(processedHtml);
+        
       } else if (ext === 'pdf') {
         const arrayBuffer = await f.arrayBuffer();
         const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
@@ -307,12 +317,11 @@ function PolicyTools() {
           const page = await pdf.getPage(i);
           const content = await page.getTextContent();
           
-          // Sort items by Y position (top to bottom), then X (left to right)
           const items = content.items.filter(item => item.str.trim());
           items.sort((a, b) => {
-            const yDiff = b.transform[5] - a.transform[5]; // Y is inverted in PDF
-            if (Math.abs(yDiff) > 5) return yDiff; // Different lines
-            return a.transform[4] - b.transform[4]; // Same line, sort by X
+            const yDiff = b.transform[5] - a.transform[5];
+            if (Math.abs(yDiff) > 5) return yDiff;
+            return a.transform[4] - b.transform[4];
           });
           
           let lastY = null;
@@ -320,32 +329,20 @@ function PolicyTools() {
           
           for (const item of items) {
             const y = Math.round(item.transform[5]);
-            
             if (lastY !== null && Math.abs(y - lastY) > 5) {
-              // New line detected
               allText += lineText.trim() + '\n';
               lineText = '';
-              
-              // Large gap = paragraph break
-              if (Math.abs(y - lastY) > 15) {
-                allText += '\n';
-              }
+              if (Math.abs(y - lastY) > 15) allText += '\n';
             }
-            
             lineText += item.str + ' ';
             lastY = y;
           }
-          
-          // Add final line of page
-          if (lineText.trim()) {
-            allText += lineText.trim() + '\n';
-          }
-          
-          // Page break
+          if (lineText.trim()) allText += lineText.trim() + '\n';
           allText += '\n';
         }
         
         setFileText(allText.trim());
+        setFileHtml(null); // No HTML for PDFs
       } else {
         alert('Please upload a .txt, .docx, or .pdf file');
         setFile(null);
@@ -354,6 +351,69 @@ function PolicyTools() {
       alert('Error reading file: ' + e.message);
       setFile(null);
     }
+  };
+
+  // Smart heading detection - converts likely headings from <p><strong> to <h2>
+  const detectHeadings = (html) => {
+    // Common policy section title patterns
+    const sectionPatterns = [
+      // Numbered sections: "1. Introduction", "2.1 Policy Aims"
+      /^(\d+\.?\d*\.?\s+[A-Z][^.!?]*?)$/,
+      // Named sections: "Introduction", "Policy Aims", "Definitions"
+      /^(Introduction|Definitions|Policy Aims|Equalities Statement|Supporting Children|Professional Expectations|Safeguarding Statement|Key Personnel|Contents|Appendix \d+|Additional Resources|Links with other).*$/i,
+      // All caps short titles
+      /^([A-Z][A-Z\s]{3,40})$/,
+      // Title case short phrases (likely headings)
+      /^([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,5})$/
+    ];
+    
+    // Process each paragraph
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = html;
+    
+    const paragraphs = tempDiv.querySelectorAll('p');
+    
+    paragraphs.forEach(p => {
+      const text = p.textContent.trim();
+      const innerHtml = p.innerHTML.trim();
+      
+      // Skip empty or very long paragraphs (not headings)
+      if (!text || text.length > 100) return;
+      
+      // Check if it's wrapped in <strong> and matches heading patterns
+      const isStrong = innerHtml.startsWith('<strong>') && innerHtml.endsWith('</strong>');
+      const strongText = isStrong ? text : null;
+      
+      // Check if matches section patterns
+      let isHeading = false;
+      let headingLevel = 'h2';
+      
+      for (const pattern of sectionPatterns) {
+        if (pattern.test(text)) {
+          isHeading = true;
+          // Numbered sections with decimals are sub-headings
+          if (/^\d+\.\d+/.test(text)) {
+            headingLevel = 'h3';
+          }
+          break;
+        }
+      }
+      
+      // Also treat bold-only short text as potential heading
+      if (!isHeading && isStrong && text.length < 60 && !text.includes('.') && !text.includes(',')) {
+        isHeading = true;
+        headingLevel = 'h3';
+      }
+      
+      // Convert to heading if detected
+      if (isHeading) {
+        const heading = document.createElement(headingLevel);
+        heading.textContent = text;
+        p.parentNode.replaceChild(heading, p);
+      }
+    });
+    
+    return tempDiv.innerHTML;
   };
 
   // ═══════════════════════════════════════════════════════════════
@@ -470,7 +530,7 @@ ${fileText.substring(0, 80000)}`;
   };
 
   // ═══════════════════════════════════════════════════════════════
-  // TAB 2: POLICY FORMATTER (AI finds sections, JS preserves content)
+  // TAB 2: POLICY FORMATTER (preserves original structure, adds TASIS wrapper)
   // ═══════════════════════════════════════════════════════════════
   
   const runFormat = async () => {
@@ -480,47 +540,25 @@ ${fileText.substring(0, 80000)}`;
     setFormatResults(null);
     
     try {
-      // STEP 1: AI extracts metadata AND identifies section structure
-      const analysisPrompt = `Analyze this policy document and extract:
-1. Document metadata
-2. Section structure (title and the EXACT first 10-20 words of each section so I can find them)
-
-Return JSON:
+      // AI extracts ONLY metadata (small task - first 15k chars)
+      const metadataPrompt = `Extract ONLY the document metadata from this policy. Return JSON:
 {
-  "metadata": {
-    "policyTitle": "exact title",
-    "shortCode": "e.g. SCP, BEH",
-    "version": "e.g. 5.0",
-    "datePublished": "date",
-    "dateRatified": "date", 
-    "reviewDate": "date",
-    "responsibleArea": "owner",
-    "infoSharingCategory": "PUBLIC or INTERNAL",
-    "scope": "scope statement",
-    "legislationReferenced": ["laws cited"],
-    "signatories": [{"role": "role", "name": "name", "date": "date"}],
-    "crossReferences": ["related policies"]
-  },
-  "sections": [
-    {
-      "number": "1",
-      "title": "Section Title Here",
-      "startMarker": "exact first 15-25 words of this section content to locate it"
-    }
-  ]
+  "policyTitle": "exact title",
+  "shortCode": "e.g. SCP, BEH",
+  "version": "e.g. 5.0",
+  "datePublished": "date",
+  "dateRatified": "date", 
+  "reviewDate": "date",
+  "responsibleArea": "owner/department",
+  "infoSharingCategory": "PUBLIC or INTERNAL",
+  "scope": "scope statement",
+  "legislationReferenced": ["laws and guidance cited"],
+  "signatories": [{"role": "role", "name": "name", "date": "date"}],
+  "crossReferences": ["related policies mentioned"]
 }
 
-CRITICAL RULES FOR SECTIONS:
-- Include ALL main sections and subsections from the document
-- The "startMarker" must be the EXACT words from the document (copy-paste)
-- Include enough words in startMarker to uniquely identify the section (15-25 words)
-- Number sections as they appear (1, 2, 3... or 1.1, 1.2 if subsections)
-- Skip the metadata/header section at the start
-- Skip contents/table of contents
-- Start from the actual policy content sections
-
-Document to analyze:
-${fileText.substring(0, 30000)}`;
+Document start:
+${fileText.substring(0, 15000)}`;
 
       const response = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
@@ -532,9 +570,9 @@ ${fileText.substring(0, 30000)}`;
         },
         body: JSON.stringify({
           model: 'claude-sonnet-4-20250514',
-          max_tokens: 8000,
+          max_tokens: 2000,
           temperature: 0,
-          messages: [{ role: 'user', content: analysisPrompt }]
+          messages: [{ role: 'user', content: metadataPrompt }]
         })
       });
 
@@ -548,93 +586,24 @@ ${fileText.substring(0, 30000)}`;
       const jsonStart = responseText.indexOf('{');
       const jsonEnd = responseText.lastIndexOf('}');
       
-      if (jsonStart === -1 || jsonEnd === -1) {
-        throw new Error('Could not parse AI response');
-      }
-      
-      let parsed;
-      try {
-        parsed = JSON.parse(responseText.substring(jsonStart, jsonEnd + 1));
-      } catch (e) {
-        // Try to fix common JSON issues
-        let jsonStr = responseText.substring(jsonStart, jsonEnd + 1);
-        jsonStr = jsonStr.replace(/,\s*}/g, '}').replace(/,\s*]/g, ']');
-        parsed = JSON.parse(jsonStr);
-      }
-      
-      const metadata = parsed.metadata || {};
-      const sectionMarkers = parsed.sections || [];
-      
-      console.log('AI found sections:', sectionMarkers.map(s => s.number + '. ' + s.title));
-      
-      // STEP 2: JavaScript finds and slices sections using the markers
-      const sections = [];
-      
-      for (let i = 0; i < sectionMarkers.length; i++) {
-        const marker = sectionMarkers[i];
-        const nextMarker = sectionMarkers[i + 1];
-        
-        // Find where this section starts
-        const startMarkerClean = marker.startMarker?.replace(/\s+/g, ' ').trim().substring(0, 100);
-        let startPos = -1;
-        
-        if (startMarkerClean) {
-          // Try to find exact match first
-          startPos = fileText.indexOf(startMarkerClean);
-          
-          // If not found, try partial match (first 50 chars)
-          if (startPos === -1 && startMarkerClean.length > 50) {
-            startPos = fileText.indexOf(startMarkerClean.substring(0, 50));
-          }
-          
-          // Try even shorter
-          if (startPos === -1 && startMarkerClean.length > 30) {
-            startPos = fileText.indexOf(startMarkerClean.substring(0, 30));
-          }
+      let metadata = {};
+      if (jsonStart !== -1 && jsonEnd !== -1) {
+        try {
+          metadata = JSON.parse(responseText.substring(jsonStart, jsonEnd + 1));
+        } catch (e) {
+          console.warn('Metadata parse warning:', e.message);
         }
-        
-        // Find where next section starts (or end of document)
-        let endPos = fileText.length;
-        if (nextMarker?.startMarker) {
-          const nextMarkerClean = nextMarker.startMarker.replace(/\s+/g, ' ').trim().substring(0, 100);
-          let nextStart = fileText.indexOf(nextMarkerClean);
-          if (nextStart === -1 && nextMarkerClean.length > 50) {
-            nextStart = fileText.indexOf(nextMarkerClean.substring(0, 50));
-          }
-          if (nextStart === -1 && nextMarkerClean.length > 30) {
-            nextStart = fileText.indexOf(nextMarkerClean.substring(0, 30));
-          }
-          if (nextStart > startPos) {
-            endPos = nextStart;
-          }
-        }
-        
-        // Extract content
-        let content = '';
-        if (startPos !== -1) {
-          content = fileText.substring(startPos, endPos).trim();
-        } else {
-          console.warn(`Could not find section: ${marker.title}`);
-          content = `[Section content could not be located. Marker: "${startMarkerClean?.substring(0, 50)}..."]`;
-        }
-        
-        sections.push({
-          number: marker.number || String(i + 1),
-          title: marker.title || 'Untitled Section',
-          content: content
-        });
       }
       
-      // If no sections found, fall back to full content
-      if (sections.length === 0) {
-        sections.push({
-          number: '1',
-          title: 'Policy Content',
-          content: fileText
-        });
+      // Use mammoth HTML if available, otherwise convert text to basic HTML
+      let contentHtml = fileHtml;
+      if (!contentHtml) {
+        // Convert plain text to paragraphs
+        contentHtml = fileText
+          .split(/\n\n+/)
+          .map(para => `<p>${para.replace(/\n/g, '<br>')}</p>`)
+          .join('\n');
       }
-      
-      const totalParsedLength = sections.reduce((sum, s) => sum + s.content.length, 0);
       
       const result = {
         policyTitle: metadata.policyTitle || 'Policy Document',
@@ -652,12 +621,10 @@ ${fileText.substring(0, 30000)}`;
           { role: 'Chair of Board', name: 'David King', date: '' }
         ],
         crossReferences: metadata.crossReferences || [],
-        sections: sections,
+        contentHtml: contentHtml, // Preserved HTML structure from document
         originalLength: fileText.length,
-        parsedLength: totalParsedLength
+        hasStructure: !!fileHtml // True if we have mammoth HTML
       };
-      
-      console.log(`Parsed ${sections.length} sections, ${totalParsedLength} chars of ${fileText.length} total`);
       
       setFormatResults(result);
       
@@ -676,6 +643,14 @@ ${fileText.substring(0, 30000)}`;
     const title = prompt('Policy title:', file?.name?.replace(/\.[^.]+$/, '').replace(/_/g, ' ') || 'Policy Document');
     if (!title) return;
     
+    let contentHtml = fileHtml;
+    if (!contentHtml) {
+      contentHtml = fileText
+        .split(/\n\n+/)
+        .map(para => `<p>${para.replace(/\n/g, '<br>')}</p>`)
+        .join('\n');
+    }
+    
     const result = {
       policyTitle: title,
       shortCode: 'POL',
@@ -692,13 +667,9 @@ ${fileText.substring(0, 30000)}`;
         { role: 'Chair of Board', name: 'David King', date: '' }
       ],
       crossReferences: [],
-      sections: [{
-        number: '1',
-        title: 'Policy Content',
-        content: fileText
-      }],
+      contentHtml: contentHtml,
       originalLength: fileText.length,
-      parsedLength: fileText.length
+      hasStructure: !!fileHtml
     };
     
     setFormatResults(result);
@@ -711,15 +682,6 @@ ${fileText.substring(0, 30000)}`;
     const r = formatResults;
     const escapeHtml = (s) => (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     
-    // Convert content to HTML paragraphs
-    const formatContent = (text) => {
-      if (!text) return '';
-      return text
-        .split(/\n\n+/)
-        .map(para => `<p>${escapeHtml(para).replace(/\n/g, '<br>')}</p>`)
-        .join('\n');
-    };
-    
     const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -730,8 +692,7 @@ ${fileText.substring(0, 30000)}`;
     @media print { 
       * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; } 
       .no-print { display: none !important; } 
-      .page { box-shadow: none !important; margin: 0 !important; }
-      .section { page-break-inside: avoid; }
+      .page { box-shadow: none !important; margin: 0 !important; max-width: none !important; }
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: 'Segoe UI', -apple-system, sans-serif; font-size: 10.5pt; line-height: 1.6; color: #1a1a1a; background: #e5e7eb; }
@@ -748,15 +709,22 @@ ${fileText.substring(0, 30000)}`;
     .meta-table { width: 100%; border-collapse: collapse; font-size: 9.5pt; }
     .meta-table th { text-align: left; padding: 6px 10px; background: #f8fafc; color: #1E3A5F; font-weight: 600; border: 1px solid #e2e8f0; width: 140px; }
     .meta-table td { padding: 6px 10px; border: 1px solid #e2e8f0; color: #374151; }
-    .contents { margin: 25px 0; }
-    .contents-title { color: #1E3A5F; font-size: 11pt; font-weight: 700; padding-bottom: 6px; margin-bottom: 12px; border-bottom: 2px solid #C8102E; display: inline-block; }
-    .contents ul { list-style: none; padding-left: 0; columns: 2; column-gap: 30px; }
-    .contents li { padding: 4px 0; font-size: 9.5pt; color: #374151; break-inside: avoid; }
-    .contents li::before { content: "•"; color: #C8102E; margin-right: 8px; }
-    .section { margin-bottom: 25px; page-break-inside: avoid; }
-    .section-header { color: #1E3A5F; font-size: 11pt; font-weight: 700; padding-bottom: 5px; margin-bottom: 12px; border-bottom: 2px solid #C8102E; }
-    .section-content { font-size: 10pt; line-height: 1.7; color: #1f2937; }
-    .section-content p { margin-bottom: 10px; }
+    
+    /* Policy content styling - applies to mammoth HTML output */
+    .policy-body { font-size: 10pt; line-height: 1.7; color: #1f2937; }
+    .policy-body h1 { color: #1E3A5F; font-size: 14pt; font-weight: 700; margin: 25px 0 12px 0; padding-bottom: 6px; border-bottom: 2px solid #C8102E; }
+    .policy-body h2 { color: #1E3A5F; font-size: 12pt; font-weight: 700; margin: 20px 0 10px 0; padding-bottom: 4px; border-bottom: 1px solid #C8102E; }
+    .policy-body h3 { color: #1E3A5F; font-size: 11pt; font-weight: 600; margin: 16px 0 8px 0; }
+    .policy-body h4, .policy-body h5, .policy-body h6 { color: #1E3A5F; font-size: 10.5pt; font-weight: 600; margin: 14px 0 6px 0; }
+    .policy-body p { margin-bottom: 10px; }
+    .policy-body ul, .policy-body ol { margin: 10px 0 10px 25px; }
+    .policy-body li { margin-bottom: 5px; }
+    .policy-body table { width: 100%; border-collapse: collapse; margin: 15px 0; font-size: 9.5pt; }
+    .policy-body table th, .policy-body table td { padding: 8px 10px; border: 1px solid #e2e8f0; text-align: left; }
+    .policy-body table th { background: #f8fafc; color: #1E3A5F; font-weight: 600; }
+    .policy-body strong { color: #1E3A5F; }
+    .policy-body a { color: #2563eb; }
+    
     .footer { border-top: 1px solid #cbd5e1; margin-top: 30px; padding-top: 15px; display: flex; justify-content: space-between; font-size: 8pt; color: #64748b; }
     .footer-accent { width: 40px; height: 3px; background: #C8102E; margin-bottom: 6px; }
     .print-btn { position: fixed; top: 25px; right: 25px; background: linear-gradient(135deg, #1E3A5F, #2a4a6f); color: white; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; font-size: 11pt; font-weight: 600; box-shadow: 0 4px 12px rgba(30,58,95,0.3); z-index: 1000; }
@@ -808,19 +776,9 @@ ${fileText.substring(0, 30000)}`;
         <p style="font-size: 9.5pt; color: #374151;">${r.legislationReferenced.map(l => escapeHtml(l)).join('; ')}</p>
       </div>` : ''}
       
-      ${r.sections?.length > 1 ? `
-      <div class="contents">
-        <div class="contents-title">Contents</div>
-        <ul>${r.sections.map(s => `<li>${escapeHtml(s.number)}. ${escapeHtml(s.title)}</li>`).join('')}</ul>
-      </div>` : ''}
-      
-      ${(r.sections || []).map(s => `
-      <div class="section">
-        <div class="section-header">${escapeHtml(s.number)}. ${escapeHtml(s.title)}</div>
-        <div class="section-content">
-          ${formatContent(s.content)}
-        </div>
-      </div>`).join('')}
+      <div class="policy-body">
+        ${r.contentHtml || '<p>No content available</p>'}
+      </div>
       
       ${r.crossReferences?.length ? `
       <div class="meta-section" style="margin-top: 25px;">
@@ -1089,22 +1047,16 @@ ${fileText.substring(0, 30000)}`;
               )
             ),
             
-            // Sections preview
+            // Content info
             React.createElement('div', { className: 'preview-section', style: { marginTop: '15px' } },
-              React.createElement('div', { className: 'preview-title' }, 
-                `Sections Found (${formatResults.sections.length})`,
-                React.createElement('span', { style: { fontWeight: 'normal', color: '#64748B', marginLeft: '10px' } },
-                  `${formatResults.parsedLength.toLocaleString()} chars preserved of ${formatResults.originalLength.toLocaleString()} (${Math.round(formatResults.parsedLength / formatResults.originalLength * 100)}%)`
-                )
+              React.createElement('div', { className: 'preview-title' }, 'Document Structure'),
+              React.createElement('p', { style: { fontSize: '13px', color: '#374151' } },
+                formatResults.hasStructure 
+                  ? '✅ Original document structure preserved (headings, lists, tables)'
+                  : '📝 Plain text converted to paragraphs'
               ),
-              React.createElement('div', { className: 'preview-sections' },
-                formatResults.sections.map((s, i) => 
-                  React.createElement('div', { key: i, className: 'preview-section-item' },
-                    React.createElement('span', { className: 'preview-section-num' }, s.number, '. '),
-                    React.createElement('span', { className: 'preview-section-title' }, s.title),
-                    React.createElement('span', { className: 'preview-section-chars' }, ' (', s.content.length.toLocaleString(), ' chars)')
-                  )
-                )
+              React.createElement('p', { style: { fontSize: '12px', color: '#64748B', marginTop: '5px' } },
+                `Content: ${formatResults.originalLength.toLocaleString()} characters`
               )
             ),
             
